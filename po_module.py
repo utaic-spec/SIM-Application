@@ -3,6 +3,11 @@ import streamlit as st
 import pandas as pd
 import requests
 import time
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart # ✅ ตัวนี้แหละที่ขาดไป
+from email.mime.base import MIMEBase
+from email import encoders
 
 def show_po_dashboard(HEADERS, URL_PO, role):
     st.subheader("📊 Purchase Order Tracking System")
@@ -320,4 +325,5 @@ def show_po_update_center(HEADERS, URL_PO, role):
         
     with t_logis:
         # เรียกใช้ฟังก์ชันเดิมของ Logistic
+
         show_logistic_update(HEADERS, URL_PO, role)
