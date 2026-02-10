@@ -5,6 +5,7 @@ import requests
 import time
 from datetime import date
 
+
 # --- 🔗 Import Functions (ฉบับรวมร่าง) ---
 try:
     from po_module import (
@@ -12,7 +13,8 @@ try:
         show_po_create, 
         show_planning_update, 
         show_logistic_update,
-        show_po_update_center 
+        show_po_update_center,
+        show_ddp_cost_analysis
     )
     from rfq_module import (
         show_rfq_dashboard, 
@@ -27,6 +29,7 @@ try:
 except ImportError as e:
     st.error(f"❌ ไม่พบไฟล์โมดูลลูก หรือชื่อฟังก์ชันไม่ถูกต้อง: {e}")
     st.stop()
+########################################
 
 # ==================================================
 # 1. CONFIG & API
@@ -86,34 +89,35 @@ with st.sidebar:
         st.rerun()
 
 # ==================================================
-# 3. NAVIGATION LOGIC & GROUPING (แก้ไขเพื่อให้เมนูขยับจัดกลุ่ม)
+# 3. NAVIGATION LOGIC & GROUPING (แก้ไขตามค่า Debug)
 # ==================================================
 
-# 1. รวบรวมสิทธิ์เบื้องต้น (ห้ามใช้ list(dict.fromkeys) ตอนท้าย)
-allowed_raw = ["📊 Dashboard PO"]
-
-if current_user_id in ["director", "sales_admin"]:
-    allowed_raw.extend([
-        "📋 RFQ Dashboard", "📊 RFQ Summary", "➕ Create RFQ", "📈 RFQ Update", 
-        "📅 Visit Dashboard", "➕ Plan & Report Visit", "➕ Create PO"
-    ])
-elif role == "sales":
-    allowed_raw.extend([
-        "📋 RFQ Dashboard", "📈 RFQ Update", "📅 Visit Dashboard", "➕ Plan & Report Visit", "➕ Create PO"
-    ])
-elif role in ["planning", "mold_planning", "mold_production", "logistic"]:
-    allowed_raw.append("🔄 PO Status Update")
-
-# 2. 🔥 จุดสำคัญ: กำหนดลำดับกลุ่มที่เราต้องการ (จัดให้ใหม่ตามนี้)
-po_group = ["📊 Dashboard PO", "➕ Create PO", "🔄 PO Status Update"]
+# 1. นิยามกลุ่มเมนู (เหมือนเดิม)
+po_group = ["📊 Dashboard PO", "➕ Create PO", "🔄 PO Status Update", "📊 DDP Cost Analysis"]
 rfq_group = ["📋 RFQ Dashboard", "📊 RFQ Summary", "➕ Create RFQ", "📈 RFQ Update"]
 visit_group = ["📅 Visit Dashboard", "➕ Plan & Report Visit"]
 
-# รวมลำดับแม่บท (Master Order)
 master_order = po_group + rfq_group + visit_group
 
-# 3. 🔥 บังคับเรียงลำดับตามกลุ่มที่กำหนดไว้
-# บรรทัดนี้จะทำให้เมนู "ขยับ" มาเรียงเป็นกลุ่ม PO -> RFQ -> Visit ทันที
+# 2. เริ่มต้นรวบรวมสิทธิ์
+allowed_raw = ["📊 Dashboard PO"]
+u_role = str(role).lower().strip()
+u_id = str(current_user_id).lower().strip() # ดึง User ID มาเช็คด้วย
+
+if u_id in ["director", "sales_admin"]:
+    allowed_raw = master_order
+elif u_role == "sales":
+    allowed_raw.extend(["📋 RFQ Dashboard", "📈 RFQ Update", "📅 Visit Dashboard", "➕ Plan & Report Visit", "➕ Create PO"])
+
+# 🔥 แก้ไขตรงนี้: ถ้า User ID คือ 'logistic' ให้เห็น DDP ทันที 
+# ไม่ว่า Role ในระบบจะเป็น planning หรืออะไรก็ตาม
+elif u_id == "logistic" or "log" in u_role:
+    allowed_raw.extend(["🔄 PO Status Update", "📊 DDP Cost Analysis"])
+
+elif "planning" in u_role or "mold" in u_role:
+    allowed_raw.append("🔄 PO Status Update")
+
+# 3. สร้างรายการแท็บจริง
 allowed_tabs = [menu for menu in master_order if menu in allowed_raw]
 # ==================================================
 # 4. UI RENDER & ROUTING
@@ -130,7 +134,9 @@ if allowed_tabs:
                 show_po_create(HEADERS, URL_PO)
             elif tab_name == "🔄 PO Status Update":
                 show_po_update_center(HEADERS, URL_PO, role)
-            
+            elif tab_name == "📊 DDP Cost Analysis": # ✅ ย้ายขึ้นมาในกลุ่ม PO
+                show_ddp_cost_analysis(HEADERS, URL_PO, role)
+
             # --- ระบบ RFQ ---
             elif tab_name == "📋 RFQ Dashboard": 
                 show_rfq_dashboard(HEADERS, URL_RFQ)
