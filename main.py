@@ -20,7 +20,7 @@ try:
         show_rfq_dashboard, 
         show_rfq_create, 
         show_rfq_update, 
-        show_rfq_management_summary
+        # show_rfq_management_summary
     )
     from visit_module import (
         show_visit_dashboard, 
@@ -158,3 +158,4 @@ if allowed_tabs:
                 show_planning_update(HEADERS, URL_PO, role)
             elif tab_name == "🚚 Logistic Update":
                 show_logistic_update(HEADERS, URL_PO, role)
+
