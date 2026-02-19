@@ -298,38 +298,37 @@ def show_rfq_update(HEADERS, URL_RFQ):
                         time.sleep(1); st.rerun()
                     else:
                         st.error(f"❌ Error: {res_patch.text}")
-
 # ==============================================================================
-# SECTION 6: MANAGEMENT SUMMARY & ANALYSIS
+# SECTION 5: SALES PERFORMANCE REPORT (TAB STRUCTURE)
 # ==============================================================================
-# def show_rfq_management_summary(HEADERS, URL_RFQ):
-#     """หน้าจอสำหรับผู้บริหารเพื่อวิเคราะห์ข้อมูลเชิงลึกและอัตราการปิดงาน (Win Rate)"""
-#     st.subheader("📊 Management RFQ Summary")
-#     res = requests.get(f"{URL_RFQ}?order=timestamp.desc", headers=HEADERS)
+def show_sales_performance_report():
+    st.subheader("📊 Sales Performance Analysis 2025")
     
-#     if res.status_code != 200:
-#         st.error("Could not fetch data.")
-#         return
+    # --- 5.1 ส่วนหัว: ตัวเลือกเดือน (แชร์ใช้ร่วมกันทุก Tab) ---
+    with st.container(border=True):
+        c1, c2, c3 = st.columns([1, 1, 1])
+        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        with c1:
+            start_m = st.selectbox("📅 เริ่มจาก", months, index=0, key="sr_start")
+        with c2:
+            end_m = st.selectbox("📅 ถึง", months, index=date.today().month-1, key="sr_end")
+        with c3:
+            st.metric("Report Year", "2025")
 
-#     df = pd.DataFrame(res.json())
-#     if df.empty:
-#         st.info("No data available.")
-#         return
+    # --- 5.2 สร้าง Tabs ย่อยภายในหน้า Report ---
+    t_mass, t_mold, t_onesim = st.tabs(["🏭 MASS BU", "🏗️ Mold BU", "🎯 One-SIM (Overall)"])
 
-#     # Clean Price Data
-#     df['price_numeric'] = df['offered_price'].apply(lambda x: float(str(x).replace(',', '').replace('THB', '').strip()) if x else 0)
-   
-#     # Summary Metrics
-#     total_quoted = df['price_numeric'].sum()
-#     high_conf_value = df[df['award_rate'] >= 80]['price_numeric'].sum()
+    # --- 5.3 เนื้อหาในแต่ละ Tab (นำ Logic เดิมมาเสียบ) ---
+    with t_mass:
+        st.markdown("### รายงานยอดขายชิ้นส่วน (Mass Sales)")
+        # [ใส่ Logic การคำนวณและกราฟของ MASS จาก Code เดิมที่นี่]
+        # ตัวอย่าง:
+        # render_mass_logic(start_m, end_m) 
 
-#     c1, c2, c3 = st.columns(3)
-#     c1.metric("Total Quoted Value", f"{total_quoted:,.2f} THB")
-#     c2.metric("High Confidence (80%+)", f"{high_conf_value:,.2f} THB")
-#     c3.metric("Win Rate (%)", f"{(len(df[df['status']=='Submitted']) / len(df) * 100):.1f}%")
+    with t_mold:
+        st.markdown("### รายงานยอดขายแม่พิมพ์ (Mold Sales)")
+        # [ใส่ Logic การคำนวณและกราฟของ Mold จาก Code เดิมที่นี่]
 
-#     st.divider()
-#     st.write("### 🏗️ Business Unit Breakdown")
-#     bu_data = df.groupby('rfq_bu')['price_numeric'].sum()
-#     st.bar_chart(bu_data)
-
+    with t_onesim:
+        st.markdown("### สรุปภาพรวมยอดขายบริษัท (Total Sales)")
+        # [แสดงกราฟเปรียบเทียบ Target vs Actual ของทั้งบริษัท]
