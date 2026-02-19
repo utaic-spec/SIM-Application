@@ -47,7 +47,7 @@ def show_sales_performance_report():
     # --- 4. Mold-DP Mapping & Calculation ---
     dp_mapping = {
         '5612603000A': 12.67, '5612603100A': 10.79,
-        'T907055A': 18.33, 'Z0011377A': 16.67, 'Z0011378A': 16.38
+        'T907055A': 0, 'Z0011377A': 16.67, 'Z0011378A': 16.38
     }
     
     df_filtered['Mold_DP_Value'] = df_filtered.apply(
@@ -179,4 +179,5 @@ def render_overall_onesim(df, year, start_m, end_m):
             c3.metric("% Achieved", f"{(total_sales/comb_target*100):.1f}%")
 
     st.info(f"💰 One-SIM Grand Total: **{total_sales:,.2f} บาท**")
+
     st.dataframe(df[['วันที่', 'ลูกค้า', 'รหัสสินค้า', 'มูลค่าสินค้า']], use_container_width=True, hide_index=True)
