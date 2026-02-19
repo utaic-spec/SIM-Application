@@ -302,33 +302,34 @@ def show_rfq_update(HEADERS, URL_RFQ):
 # ==============================================================================
 # SECTION 6: MANAGEMENT SUMMARY & ANALYSIS
 # ==============================================================================
-def show_rfq_management_summary(HEADERS, URL_RFQ):
-    """หน้าจอสำหรับผู้บริหารเพื่อวิเคราะห์ข้อมูลเชิงลึกและอัตราการปิดงาน (Win Rate)"""
-    st.subheader("📊 Management RFQ Summary")
-    res = requests.get(f"{URL_RFQ}?order=timestamp.desc", headers=HEADERS)
+# def show_rfq_management_summary(HEADERS, URL_RFQ):
+#     """หน้าจอสำหรับผู้บริหารเพื่อวิเคราะห์ข้อมูลเชิงลึกและอัตราการปิดงาน (Win Rate)"""
+#     st.subheader("📊 Management RFQ Summary")
+#     res = requests.get(f"{URL_RFQ}?order=timestamp.desc", headers=HEADERS)
     
-    if res.status_code != 200:
-        st.error("Could not fetch data.")
-        return
+#     if res.status_code != 200:
+#         st.error("Could not fetch data.")
+#         return
 
-    df = pd.DataFrame(res.json())
-    if df.empty:
-        st.info("No data available.")
-        return
+#     df = pd.DataFrame(res.json())
+#     if df.empty:
+#         st.info("No data available.")
+#         return
 
-    # Clean Price Data
-    df['price_numeric'] = df['offered_price'].apply(lambda x: float(str(x).replace(',', '').replace('THB', '').strip()) if x else 0)
+#     # Clean Price Data
+#     df['price_numeric'] = df['offered_price'].apply(lambda x: float(str(x).replace(',', '').replace('THB', '').strip()) if x else 0)
    
-    # Summary Metrics
-    total_quoted = df['price_numeric'].sum()
-    high_conf_value = df[df['award_rate'] >= 80]['price_numeric'].sum()
+#     # Summary Metrics
+#     total_quoted = df['price_numeric'].sum()
+#     high_conf_value = df[df['award_rate'] >= 80]['price_numeric'].sum()
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Quoted Value", f"{total_quoted:,.2f} THB")
-    c2.metric("High Confidence (80%+)", f"{high_conf_value:,.2f} THB")
-    c3.metric("Win Rate (%)", f"{(len(df[df['status']=='Submitted']) / len(df) * 100):.1f}%")
+#     c1, c2, c3 = st.columns(3)
+#     c1.metric("Total Quoted Value", f"{total_quoted:,.2f} THB")
+#     c2.metric("High Confidence (80%+)", f"{high_conf_value:,.2f} THB")
+#     c3.metric("Win Rate (%)", f"{(len(df[df['status']=='Submitted']) / len(df) * 100):.1f}%")
 
-    st.divider()
-    st.write("### 🏗️ Business Unit Breakdown")
-    bu_data = df.groupby('rfq_bu')['price_numeric'].sum()
-    st.bar_chart(bu_data)
+#     st.divider()
+#     st.write("### 🏗️ Business Unit Breakdown")
+#     bu_data = df.groupby('rfq_bu')['price_numeric'].sum()
+#     st.bar_chart(bu_data)
+
