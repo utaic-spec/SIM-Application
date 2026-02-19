@@ -8,6 +8,7 @@ from datetime import date
 
 # --- 🔗 Import Functions (ฉบับรวมร่าง) ---
 try:
+    from sales_module import show_sales_performance_report
     from po_module import (
         show_po_dashboard, 
         show_po_create, 
@@ -92,23 +93,28 @@ with st.sidebar:
 # 3. NAVIGATION LOGIC & GROUPING (แก้ไขตามค่า Debug)
 # ==================================================
 
-# 1. นิยามกลุ่มเมนู (เหมือนเดิม)
+# 1. นิยามกลุ่มเมนู
 po_group = ["📊 Dashboard PO", "➕ Create PO", "🔄 PO Status Update", "📊 DDP Cost Analysis"]
-rfq_group = ["📋 RFQ Dashboard", "📊 RFQ Summary", "➕ Create RFQ", "📈 RFQ Update"]
+rfq_group = ["📋 RFQ Dashboard", "➕ Create RFQ", "📈 RFQ Update"]
 visit_group = ["📅 Visit Dashboard", "➕ Plan & Report Visit"]
+# ✅ เพิ่มกลุ่มใหม่
+sales_report_group = ["📈 Sales Performance"] 
 
-master_order = po_group + rfq_group + visit_group
+# รวมลำดับทั้งหมด
+master_order = po_group + rfq_group + visit_group + sales_report_group
 
 # 2. เริ่มต้นรวบรวมสิทธิ์
 allowed_raw = ["📊 Dashboard PO"]
 u_role = str(role).lower().strip()
-u_id = str(current_user_id).lower().strip() # ดึง User ID มาเช็คด้วย
+u_id = str(current_user_id).lower().strip()
 
 if u_id in ["director", "sales_admin"]:
-    allowed_raw = master_order
+    allowed_raw = master_order  # Director เห็นทุกอย่างรวมถึง Sales Report
+    
 elif u_role == "sales":
-    allowed_raw.extend(["📋 RFQ Dashboard", "📈 RFQ Update", "📅 Visit Dashboard", "➕ Plan & Report Visit", "➕ Create PO"])
-
+    # หากต้องการให้ Sales เห็น Report ของตัวเองด้วย ให้เพิ่มรายการในลิสต์นี้
+    allowed_raw.extend(["📋 RFQ Dashboard", "📈 RFQ Update", "📅 Visit Dashboard", 
+                        "➕ Plan & Report Visit", "➕ Create PO", "📈 Sales Performance"])
 # 🔥 แก้ไขตรงนี้: ถ้า User ID คือ 'logistic' ให้เห็น DDP ทันที 
 # ไม่ว่า Role ในระบบจะเป็น planning หรืออะไรก็ตาม
 elif u_id == "logistic" or "log" in u_role:
@@ -140,8 +146,6 @@ if allowed_tabs:
             # --- ระบบ RFQ ---
             elif tab_name == "📋 RFQ Dashboard": 
                 show_rfq_dashboard(HEADERS, URL_RFQ)
-            # elif tab_name == "📊 RFQ Summary": 
-            #     show_rfq_management_summary(HEADERS, URL_RFQ)
             elif tab_name == "➕ Create RFQ": 
                 show_rfq_create(HEADERS, URL_RFQ)
             elif tab_name == "📈 RFQ Update": 
@@ -153,11 +157,13 @@ if allowed_tabs:
             elif tab_name == "➕ Plan & Report Visit": 
                 show_visit_management(HEADERS, URL_VISIT, user['name'], role)
 
+            # --- ✅ เพิ่มระบบ Sales Performance Report ---
+            # ใน loop ของ allowed_tabs
+            elif tab_name == "📈 Sales Performance":
+                show_sales_performance_report() # เรียกใช้ฟังก์ชันจากไฟล์ใหม่
+
             # --- เมนูเดิม (กันเหนียว) ---
             elif tab_name == "🏭 Planning Update":
                 show_planning_update(HEADERS, URL_PO, role)
             elif tab_name == "🚚 Logistic Update":
                 show_logistic_update(HEADERS, URL_PO, role)
-
-
-
