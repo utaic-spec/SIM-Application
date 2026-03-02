@@ -48,7 +48,7 @@ HEADERS = {
 USER_DB = {
     "director": {"pwd": "2573", "role": "admin", "name": "K.Utai"},
     "sales_admin": {"pwd": "sales2026", "role": "sales_admin", "name": "K.Fern"},
-    "sales1": {"pwd": "s12026", "role": "sales", "name": "Sales 1"},
+    "sales1": {"pwd": "s12026", "role": "sales", "name": "Keng"},
     "sales2": {"pwd": "s22026", "role": "sales", "name": "Sales 2"},
     "sales3": {"pwd": "s32026", "role": "sales", "name": "Sales 3"},
     "logistic": {"pwd": "logistic2026", "role": "planning", "name": "K.Rung"},
@@ -167,3 +167,4 @@ if allowed_tabs:
                 show_planning_update(HEADERS, URL_PO, role)
             elif tab_name == "🚚 Logistic Update":
                 show_logistic_update(HEADERS, URL_PO, role)
+
