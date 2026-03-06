@@ -198,16 +198,16 @@ def show_rfq_create(HEADERS, URL_RFQ):
         with c1:
             r_id = st.text_input("RFQ ID *")
             r_part = st.text_input("Part No. *")
-            r_bu = st.selectbox("RFQ BU", ["Mold", "Mass","Mass&Mold"])
+            r_bu = st.selectbox("RFQ BU", ["Mold", "Mass","Mass&Mold","Job Shop"])
             r_cust = st.text_input("Customer Name *")
         with c2:
-            r_proc = st.multiselect("Process", ["Die Casting", "FN", "SB", "T5", "Coating", "MC", "New-Mold", "Mold-Part", "Mold-OH", "Mold-Repair"])
+            r_proc = st.multiselect("Process", ["Die Casting", "FN", "SB", "T5", "Coating", "MC", "New-Mold", "Mold-Part", "Mold-OH", "Mold-Repair","Special-Part"])
             r_mat = st.text_input("Material")
             r_tool = st.multiselect("Tooling", ["New Mold", "Transferred Mold", "New Jigs", "Transferred Jigs"])
         with c3:
             r_vol = st.number_input("Volumes (Yearly)", min_value=0)
             r_target = st.date_input("Quotation Target Date")
-            r_sales = st.selectbox("Sales Owner", ["K.Utai", "K.Rewat", "Sales"])
+            r_sales = st.selectbox("Sales Owner", ["K.Utai", "K.Rewat", "K.Keng"])
         
         r_link = st.text_input("🔗 Google Drive Folder Link")
         r_rem = st.text_area("Remark / Detail")
@@ -332,3 +332,4 @@ def show_sales_performance_report():
     with t_onesim:
         st.markdown("### สรุปภาพรวมยอดขายบริษัท (Total Sales)")
         # [แสดงกราฟเปรียบเทียบ Target vs Actual ของทั้งบริษัท]
+
