@@ -36,6 +36,8 @@ def send_auto_email(rfq_data):
         staff_team = ["thawat.t@siamintermold.com", "waiphop.b@siamintermold.com"]
     elif bu == "Mass&Mold":
         staff_team = ["natthapol.p@siamintermold.com", "thawat.t@siamintermold.com"]
+    elif bu == "Job Shop":
+        staff_team = ["natthapol.p@siamintermold.com", "thawat.t@siamintermold.com"]
 
     receiver_emails = list(set([email.strip() for email in (admin_team + staff_team) if email]))
 
@@ -332,4 +334,5 @@ def show_sales_performance_report():
     with t_onesim:
         st.markdown("### สรุปภาพรวมยอดขายบริษัท (Total Sales)")
         # [แสดงกราฟเปรียบเทียบ Target vs Actual ของทั้งบริษัท]
+
 
