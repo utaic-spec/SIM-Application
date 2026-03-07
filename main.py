@@ -27,6 +27,7 @@ try:
         show_visit_dashboard, 
         show_visit_management
     )
+    from customers_module import show_customer_module
 except ImportError as e:
     st.error(f"❌ ไม่พบไฟล์โมดูลลูก หรือชื่อฟังก์ชันไม่ถูกต้อง: {e}")
     st.stop()
@@ -92,7 +93,7 @@ with st.sidebar:
 # ==================================================
 # 3. NAVIGATION LOGIC & GROUPING (แก้ไขตามค่า Debug)
 # ==================================================
-
+URL_CUSTOMERS = "https://yqljvjfffrthnlbyitfw.supabase.co/rest/v1/customers" # URL ของตารางใหม่
 # 1. นิยามกลุ่มเมนู
 po_group = ["📊 Dashboard PO", "➕ Create PO", "🔄 PO Status Update", "📊 DDP Cost Analysis"]
 rfq_group = ["📋 RFQ Dashboard", "➕ Create RFQ", "📈 RFQ Update"]
@@ -101,8 +102,7 @@ visit_group = ["📅 Visit Dashboard", "➕ Plan & Report Visit"]
 sales_report_group = ["📈 Sales Performance"] 
 
 # รวมลำดับทั้งหมด
-master_order = po_group + rfq_group + visit_group + sales_report_group
-
+master_order = master_order = po_group + rfq_group + visit_group + sales_report_group + ["👥 Customer Database"]
 # 2. เริ่มต้นรวบรวมสิทธิ์
 allowed_raw = ["📊 Dashboard PO"]
 u_role = str(role).lower().strip()
@@ -114,7 +114,7 @@ if u_id in ["director", "sales_admin"]:
 elif u_role == "sales":
     # หากต้องการให้ Sales เห็น Report ของตัวเองด้วย ให้เพิ่มรายการในลิสต์นี้
     allowed_raw.extend(["📋 RFQ Dashboard", "📈 RFQ Update", "📅 Visit Dashboard", 
-                        "➕ Plan & Report Visit", "➕ Create PO", "📈 Sales Performance"])
+                        "➕ Plan & Report Visit", "➕ Create PO", "📈 Sales Performance","👥 Customer Database"])
 # 🔥 แก้ไขตรงนี้: ถ้า User ID คือ 'logistic' ให้เห็น DDP ทันที 
 # ไม่ว่า Role ในระบบจะเป็น planning หรืออะไรก็ตาม
 elif u_id == "logistic" or "log" in u_role:
@@ -167,4 +167,9 @@ if allowed_tabs:
                 show_planning_update(HEADERS, URL_PO, role)
             elif tab_name == "🚚 Logistic Update":
                 show_logistic_update(HEADERS, URL_PO, role)
+
+            elif tab_name == "👥 Customer Database":
+                # ส่ง HEADERS และ URL ไปทำงานเหมือน Module อื่นๆ เป๊ะ
+                show_customer_module(HEADERS, URL_CUSTOMERS)
+
 
