@@ -170,7 +170,7 @@ def show_visit_management(HEADERS, URL_VISIT, current_user_name, user_role):
                         
                         c1, c2 = st.columns(2)
                         with c1: 
-                            new_status = st.selectbox("ปรับสถานะงาน", ["Completed", "Postponed", "Cancelled"])
+                            new_status = st.selectbox("ปรับสถานะงาน", ["Completed", "Postponed", "Called", "Mailed", "Cancelled"])
                         
                         v_actual_report = st.text_area("✍️ สรุปผลการเข้าพบ (Actual Report)", placeholder="พิมพ์สรุปเนื้อหาที่ได้คุยกับลูกค้าที่นี่...")
                         
@@ -193,4 +193,5 @@ def show_visit_management(HEADERS, URL_VISIT, current_user_name, user_role):
                                 st.warning("⚠️ กรุณากรอกรายละเอียดผลการเข้าพบก่อนส่ง")
                 else:
                     st.warning("🔎 ไม่พบรายการที่ตรงกับเงื่อนไขการค้นหา")
+
 
