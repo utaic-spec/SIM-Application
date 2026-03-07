@@ -15,6 +15,7 @@ def show_customer_module(headers, url):
                 name = st.text_input("ชื่อบริษัท/ลูกค้า*")
                 bu = st.selectbox("กลุ่มธุรกิจ (BU)", ['MASS', 'MOLD', 'Mass&Mold', 'Special-Part', 'Services'])
                 bu_details = st.text_input("รายละเอียดลูกค้า (Customer Details)*")
+                cust_status = st.selectbox("สถาณะ ( Status)", ['Awarded', 'RFQ', 'On-Duce'])
             with c2:
                 segment = st.selectbox("กลุ่มอุตสาหกรรม", ["Automotive", "Electronics", "Medical", "Other"])
                 term = st.text_input("Credit Term (เช่น 30 Days)")
@@ -54,4 +55,5 @@ def show_customer_module(headers, url):
             else:
                 st.info("ยังไม่มีข้อมูลลูกค้า")
         else:
+
             st.error("ไม่สามารถดึงข้อมูลได้")
