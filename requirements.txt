@@ -6,3 +6,5 @@ Pillow>=10.2.0
 openpyxl>=3.0.10
 plotly>=5.11.0
 requests
+fpdf
+
