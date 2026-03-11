@@ -198,7 +198,7 @@ def show_po_create(HEADERS, URL_PO):
         with d3:
             p_status = st.selectbox("Delivery Status", ["Pending", "Partial Shipped", "Fully Shipped"])
 
-        p_remark = st.text_area("Internal Remark (ระบุรายละเอียดการแบ่งส่ง)")
+        p_remark = st.text_area("Internal Remark / RFQ Link Details")
 
         # --- ส่วนคำนวณเงินโชว์ก่อนกดส่ง ---
         total_preview = p_qty * p_price
@@ -615,4 +615,5 @@ def show_ddp_cost_analysis(HEADERS, URL_PO, role):
                         st.balloons()
                     else:
                         st.error("❌ การส่งอีเมลล้มเหลว กรุณาตรวจสอบการตั้งค่า")
+
 
