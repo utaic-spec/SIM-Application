@@ -111,7 +111,7 @@ def send_po_auto_email(po_data, total_val):
         staff_team = ["thawat.t@siamintermold.com", "waiphop.b@siamintermold.com"]
     else:
         # สำหรับ "Mass-Part", "Steel Bush", "Other" ส่งหาคุณ Natthapol
-        staff_team = ["natthapol.p@siamintermold.com","rungnapa.p@siamintermold.com"]
+        staff_team = ["natthapol.p@siamintermold.com","rungnapa.p@siamintermold.com","waiphop.b@siamintermold.com"]
 
     all_receivers = list(set(admin_team + staff_team))
     ####################################################### Test #####################################
@@ -615,3 +615,4 @@ def show_ddp_cost_analysis(HEADERS, URL_PO, role):
                         st.balloons()
                     else:
                         st.error("❌ การส่งอีเมลล้มเหลว กรุณาตรวจสอบการตั้งค่า")
+
