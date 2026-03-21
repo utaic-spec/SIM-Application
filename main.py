@@ -20,7 +20,9 @@ try:
     from rfq_module import (
         show_rfq_dashboard, 
         show_rfq_create, 
-        show_rfq_update, 
+        show_rfq_update,
+        show_rfq_performance_dashboard
+
         # show_rfq_management_summary
     )
     from visit_module import (
@@ -104,7 +106,7 @@ URL_QT = "https://yqljvjfffrthnlbyitfw.supabase.co/rest/v1/quotations"
 ##################################################
 # 1. นิยามกลุ่มเมนู
 po_group = ["📊 Dashboard PO", "➕ Create PO", "🔄 PO Status Update", "📊 DDP Cost Analysis"]
-rfq_group = ["📋 RFQ Dashboard", "➕ Create RFQ", "📈 RFQ Update"]
+rfq_group = ["📋 RFQ Dashboard", "➕ Create RFQ", "📈 RFQ Update","📈 RFQ Performance Summary"]
 visit_group = ["📅 Visit Dashboard", "➕ Plan & Report Visit"]
 qt_group = ["📄 Create Quotation"] 
 sales_report_group = ["📈 Sales Performance"] 
@@ -159,6 +161,8 @@ if allowed_tabs:
                 show_rfq_create(HEADERS, URL_RFQ)
             elif tab_name == "📈 RFQ Update": 
                 show_rfq_update(HEADERS, URL_RFQ)
+            elif tab_name == "📈 RFQ Performance Summary": # <--- เงื่อนไขใหม่
+                show_rfq_performance_dashboard(HEADERS, URL_RFQ)
             
             # --- ระบบ Sales Visit ---
             elif tab_name == "📅 Visit Dashboard": 
