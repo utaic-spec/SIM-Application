@@ -6,6 +6,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, date
 import time
+import plotly.express as px
 
 # ==============================================================================
 # SECTION 1: CONFIGURATION & GLOBAL VARIABLES
@@ -36,8 +37,6 @@ def send_auto_email(rfq_data):
         staff_team = ["thawat.t@siamintermold.com", "waiphop.b@siamintermold.com"]
     elif bu == "Mass&Mold":
         staff_team = ["natthapol.p@siamintermold.com", "thawat.t@siamintermold.com"]
-    elif bu == "Job Shop":
-        staff_team = ["waiphop.b@siamintermold.com", "thawat.t@siamintermold.com"]
 
     receiver_emails = list(set([email.strip() for email in (admin_team + staff_team) if email]))
 
@@ -200,16 +199,16 @@ def show_rfq_create(HEADERS, URL_RFQ):
         with c1:
             r_id = st.text_input("RFQ ID *")
             r_part = st.text_input("Part No. *")
-            r_bu = st.selectbox("RFQ BU", ["Mold", "Mass","Mass&Mold","Job Shop"])
+            r_bu = st.selectbox("RFQ BU", ["Mold", "Mass","Mass&Mold"])
             r_cust = st.text_input("Customer Name *")
         with c2:
-            r_proc = st.multiselect("Process", ["Die Casting", "FN", "SB", "T5", "Coating", "MC", "New-Mold", "Mold-Part", "Mold-OH", "Mold-Repair","Special-Part"])
+            r_proc = st.multiselect("Process", ["Die Casting", "FN", "SB", "T5", "Coating", "MC", "New-Mold", "Mold-Part", "Mold-OH", "Mold-Repair"])
             r_mat = st.text_input("Material")
             r_tool = st.multiselect("Tooling", ["New Mold", "Transferred Mold", "New Jigs", "Transferred Jigs"])
         with c3:
             r_vol = st.number_input("Volumes (Yearly)", min_value=0)
             r_target = st.date_input("Quotation Target Date")
-            r_sales = st.selectbox("Sales Owner", ["K.Utai", "K.Rewat", "K.Keng"])
+            r_sales = st.selectbox("Sales Owner", ["K.Utai", "K.Rewat", "Sales"])
         
         r_link = st.text_input("🔗 Google Drive Folder Link")
         r_rem = st.text_area("Remark / Detail")
@@ -282,7 +281,7 @@ def show_rfq_update(HEADERS, URL_RFQ):
                         curr_rate = int(row.get('award_rate', 0)) if row.get('award_rate') else 0
                     except:
                         curr_rate = 0
-                    q_score = st.select_slider("🎯 Achieve Rate (%)", options=[0, 30, 50, 80, 100], value=curr_rate)
+                    q_score = st.select_slider("🎯 Achieve Rate (%)", options=[ 0, 30, 50, 80, 100], value=curr_rate)
                 
                 q_rem = st.text_area("💬 Sales Note / Remark", value=row.get('remark', '') or "")
                 btn_label = "🚀 Submit Quotation" if current_status == 'Pending' else "🔄 Update & Save Data"
@@ -335,5 +334,168 @@ def show_sales_performance_report():
         st.markdown("### สรุปภาพรวมยอดขายบริษัท (Total Sales)")
         # [แสดงกราฟเปรียบเทียบ Target vs Actual ของทั้งบริษัท]
 
+# ==============================================================================
+# SECTION 6: EXECUTIVE PERFORMANCE DASHBOARD (NEW SUMMARY)
+# ==============================================================================
+def show_rfq_performance_dashboard(HEADERS, URL_RFQ):
+    st.subheader("📊 Executive RFQ Performance Dashboard")
 
+    # 1. ดึงข้อมูล
+    res = requests.get(f"{URL_RFQ}?order=timestamp.desc", headers=HEADERS)
+    if res.status_code != 200 or not res.json():
+        st.warning("⚠️ ไม่พบข้อมูลสำหรับทำรายงานสรุป")
+        return
 
+    df = pd.DataFrame(res.json())
+
+    # 2. Data Cleaning & Calculation (Logic เดียวกับ Pipeline)
+    df['price_clean'] = pd.to_numeric(df['offered_price'].astype(str).str.replace(',', '').str.replace('THB', ''), errors='coerce').fillna(0)
+    df['mold_price_clean'] = pd.to_numeric(df.get('mold_price', 0), errors='coerce').fillna(0)
+    df['volume_clean'] = pd.to_numeric(df['volumes_yearly'], errors='coerce').fillna(0)
+    df['award_rate_clean'] = pd.to_numeric(df['award_rate'], errors='coerce').fillna(0)
+
+    # คำนวณมูลค่ารายบรรทัด
+    df['mass_val'] = df.apply(lambda x: x['price_clean'] * x['volume_clean'] if x['rfq_bu'] in ['Mass', 'Mass&Mold'] else 0, axis=1)
+    df['mold_val'] = df.apply(lambda x: x['price_clean'] if x['rfq_bu'] == "Mold" else (x['mold_price_clean'] if x['rfq_bu'] == "Mass&Mold" else 0), axis=1)
+    df['total_val'] = df['mass_val'] + df['mold_val']
+
+    # --- ส่วนการแสดงผลกราฟ ---
+    col_chart1, col_chart2 = st.columns(2)
+
+    with col_chart1:
+        # กราฟที่ 1: RFQ Distribution by BU (Pie Chart)
+        st.write("📌 **สัดส่วนจำนวน RFQ ตาม BU (%)**")
+        bu_counts = df['rfq_bu'].value_counts().reset_index()
+        bu_counts.columns = ['BU', 'Count']
+        fig1 = px.pie(bu_counts, values='Count', names='BU', hole=0.4,
+                     color_discrete_sequence=px.colors.qualitative.Pastel)
+        fig1.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=300)
+        st.plotly_chart(fig1, use_container_width=True)
+
+    with col_chart2:
+        st.write("💰 **มูลค่าโครงการรวมแยกตาม BU (THB)**")
+        val_by_bu = df.groupby('rfq_bu')['total_val'].sum().reset_index()
+        
+        fig2 = px.bar(val_by_bu, x='rfq_bu', y='total_val', 
+                     labels={'total_val': 'Total Value', 'rfq_bu': 'Business Unit'},
+                     color='rfq_bu', 
+                     text_auto='.3s', # แสดงตัวเลขย่อบน Bar (เช่น 1.5M, 500k)
+                     color_discrete_sequence=px.colors.qualitative.Safe)
+        
+        fig2.update_traces(textposition='outside') # วางตัวเลขไว้ด้านบนแท่ง
+        fig2.update_layout(showlegend=False, height=350)
+        st.plotly_chart(fig2, use_container_width=True)
+
+    st.divider()
+    st.divider()
+    # st.write("🎯 **วิเคราะห์โอกาสชนะงาน (Achieve Rate Breakdown) ราย BU**")
+
+    # --- เตรียมข้อมูลสำหรับการวิเคราะห์โอกาสชนะ (เฉพาะงานที่ส่งแล้ว) ---
+    # เราจะกรองเอาเฉพาะ Status: Submitted, Quoted หรือ Won/Loss (ถ้ามี)
+    # ไม่เอา 'Pending' มาปนในกราฟ Achieve Rate Breakdown
+    
+    submitted_status = ['Submitted', 'Won', 'Loss'] # รายการสถานะที่ถือว่าส่งงานแล้ว
+    df_submitted = df[df['status'].isin(submitted_status)].copy()
+    
+    st.write(f"🎯 **วิเคราะห์โอกาสชนะงาน (เฉพาะรายการที่ส่ง Quotation แล้ว {len(df_submitted)} รายการ)**")
+
+    if not df_submitted.empty:
+        # 1. จัดหมวดหมู่ Achieve Level
+        df_submitted['Achieve_Level'] = df_submitted['award_rate_clean'].astype(int).astype(str) + "%"
+        
+        # 2. จัดกลุ่มข้อมูลเพื่อทำ Stacked Bar
+        achieve_stack = df_submitted.groupby(['rfq_bu', 'Achieve_Level']).size().reset_index(name='count')
+        
+        # 3. สร้างกราฟ Stacked Bar
+        fig4 = px.bar(achieve_stack, 
+                     x='rfq_bu', 
+                     y='count', 
+                     color='Achieve_Level',
+                     labels={'count': 'จำนวน RFQ', 'rfq_bu': 'Business Unit', 'Achieve_Level': 'ความมั่นใจ'},
+                     category_orders={"Achieve_Level": ["0%", "30%", "50%", "80%", "100%"]}, # เรียงลำดับจากน้อยไปมาก
+                     color_discrete_map={
+                         "0%": "#D32F2F",   # สีแดงเข้ม (Rejected/Loss)
+                         "30%": "#FFB300",  # สีส้ม
+                         "50%": "#1976D2",  # สีน้ำเงิน
+                         "80%": "#4CAF50",  # สีเขียว
+                         "100%": "#004D40"  # สีเขียวเข้ม (Won)
+                     },
+                     text_auto=True)
+
+        fig4.update_layout(barmode='stack', height=450)
+        st.plotly_chart(fig4, use_container_width=True)
+        
+        # --- เพิ่ม Insight สรุป Project Reject ---
+        reject_df = df_submitted[df_submitted['award_rate_clean'] == 0]
+        if not reject_df.empty:
+            st.error(f"⚠️ **Project Reject Analysis:** พบงานที่ส่งแล้วแต่ถูกปฏิเสธ (0%) จำนวน **{len(reject_df)}** รายการ มูลค่ารวม **{reject_df['total_val'].sum():,.0f}** THB")
+        else:
+            st.success("✅ ยังไม่มีรายการที่ถูกปฏิเสธ (0%) จากงานที่ส่งไปแล้ว")
+            
+    else:
+        st.info("ℹ️ ยังไม่มีข้อมูล RFQ ที่อยู่ในสถานะส่งมอบ (Submitted)")
+
+    # --- แสดงส่วน Pending แยกต่างหาก (Optional) ---
+    pending_count = len(df[df['status'] == 'Pending'])
+    if pending_count > 0:
+        st.caption(f"📋 หมายเหตุ: มีงานที่ยังอยู่ระหว่างดำเนินการ (Pending) อีก {pending_count} รายการ ซึ่งไม่ถูกนำมาคำนวณในกราฟความมั่นใจนี้")
+
+    # กราฟที่ 3: Average Achieve % by BU (ความสามารถในการแข่งขัน)
+    st.write("🎯 **เปรียบเทียบ Achieve Rate (%) เฉลี่ยราย Business Unit**")
+    achieve_by_bu = df.groupby('rfq_bu')['award_rate_clean'].mean().reset_index()
+    
+    # เพิ่มกราฟแสดงสถานะ (Status Breakdown)
+    status_summary = df.groupby(['rfq_bu', 'status']).size().reset_index(name='count')
+    fig3 = px.bar(status_summary, x='rfq_bu', y='count', color='status',
+                 title="จำนวนงานแยกตามสถานะของแต่ละ BU",
+                 barmode='group', text_auto=True)
+    st.plotly_chart(fig3, use_container_width=True)
+
+    # --- ส่วนสรุปตัวเลขสำคัญ (Summary Table) ---
+    st.write("### 📈 Table Summary: BU Performance")
+    summary_table = df.groupby('rfq_bu').agg({
+        'rfq_id': 'count',
+        'total_val': 'sum',
+        'award_rate_clean': 'mean'
+    }).rename(columns={
+        'rfq_id': 'Total RFQs',
+        'total_val': 'Total Value (THB)',
+        'award_rate_clean': 'Avg. Achieve %'
+    })
+    
+ # 1. สร้าง Summary Table ตาม BU ปกติ
+    summary_table = df.groupby('rfq_bu').agg({
+        'rfq_id': 'count',
+        'total_val': 'sum',
+        'award_rate_clean': 'mean'
+    }).rename(columns={
+        'rfq_id': 'Total RFQs',
+        'total_val': 'Total Value (THB)',
+        'award_rate_clean': 'Avg. Achieve %'
+    })
+
+    # 1. สร้าง Summary Table ตาม BU ปกติ
+    summary_table = df.groupby('rfq_bu').agg({
+        'rfq_id': 'count',
+        'total_val': 'sum',
+        'award_rate_clean': 'mean'
+    }).rename(columns={
+        'rfq_id': 'Total RFQs',
+        'total_val': 'Total Value (THB)',
+        'award_rate_clean': 'Avg. Achieve %'
+    })
+
+    # 2. คำนวณค่า Grand Total เฉพาะคอลัมน์ที่จำเป็น
+    total_rfqs = summary_table['Total RFQs'].sum()
+    total_value = summary_table['Total Value (THB)'].sum()
+    
+    # 3. เพิ่มบรรทัด Grand Total โดยใส่ None ในช่อง % เพื่อไม่ให้แสดงค่า
+    summary_table.loc['🔥 Grand Total'] = [total_rfqs, total_value, None]
+
+    # 4. แสดงผลตารางพร้อม Format (ใช้ na_rep เพื่อให้ช่องที่เป็น None แสดงเป็นที่ว่างหรือขีด)
+
+    st.table(summary_table.style.format({
+        'Total RFQs': '{:,.0f}',
+        'Total Value (THB)': '{:,.0f}',
+        'Avg. Achieve %': '{:.2f}%'
+    }, na_rep="-")) # ถ้าเป็น None ให้แสดงเป็นเครื่องหมาย "-" แทน
