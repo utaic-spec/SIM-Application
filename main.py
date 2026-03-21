@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import requests
@@ -20,6 +19,7 @@ try:
     from rfq_module import (
         show_rfq_dashboard, 
         show_rfq_create, 
+        show_rfq_update, 
         show_rfq_update,
         show_rfq_performance_dashboard
 
@@ -30,9 +30,9 @@ try:
         show_visit_management
     )
     from quotation_module import show_quotation_module
-    from customers_module import show_customer_module
+    from customers_module import show_customer_module 
 
-   
+
 except ImportError as e:
     st.error(f"❌ ไม่พบไฟล์โมดูลลูก หรือชื่อฟังก์ชันไม่ถูกต้อง: {e}")
     st.stop()
@@ -106,37 +106,27 @@ URL_QT = "https://yqljvjfffrthnlbyitfw.supabase.co/rest/v1/quotations"
 ##################################################
 # 1. นิยามกลุ่มเมนู
 po_group = ["📊 Dashboard PO", "➕ Create PO", "🔄 PO Status Update", "📊 DDP Cost Analysis"]
+rfq_group = ["📋 RFQ Dashboard", "➕ Create RFQ", "📈 RFQ Update"]
 rfq_group = ["📋 RFQ Dashboard", "➕ Create RFQ", "📈 RFQ Update","📈 RFQ Performance Summary"]
 visit_group = ["📅 Visit Dashboard", "➕ Plan & Report Visit"]
 qt_group = ["📄 Create Quotation"] 
-sales_report_group = ["📈 Sales Performance"]
-tabs_labels = ["📋 รายชื่อลูกค้า", "➕ ลงทะเบียนลูกค้าใหม่"]
-if role in ['admin', 'director']: # เฉพาะสิทธิ์สูงถึงจะเห็น Tab แก้ไข
-    tabs_labels.append("📝 แก้ไขข้อมูลลูกค้า")
+sales_report_group = ["📈 Sales Performance"] 
+
 # รวมลำดับทั้งหมด
 # แก้ไขจาก master_order = master_order = ... เป็นแบบนี้:
-master_order = [m.strip() for m in (po_group + rfq_group + visit_group + sales_report_group + ["👥 Customer Database"] + qt_group)]
+master_order = po_group + rfq_group + visit_group + sales_report_group + ["👥 Customer Database"] + qt_group
 # 2. เริ่มต้นรวบรวมสิทธิ์
-allowed_raw = [] 
+allowed_raw = ["📊 Dashboard PO"]
 u_role = str(role).lower().strip()
 u_id = str(current_user_id).lower().strip()
 
 if u_id in ["director", "sales_admin"]:
-    # Director เห็นทุกอย่าง
-    allowed_raw = master_order.copy()
+    allowed_raw = master_order  # Director เห็นทุกอย่างรวมถึง Sales Report
 
-# --- ส่วนของ Sales ใน main.py ---
 elif u_role == "sales":
-    # สำหรับ Sales1 (Keng) จะเข้าเงื่อนไขนี้
-    sales_menus = [
-        "📋 RFQ Dashboard", 
-        "📈 RFQ Update", 
-        "📅 Visit Dashboard", 
-        "➕ Plan & Report Visit", 
-        "📈 Sales Performance",
-        "👥 Customer Database" 
-    ]
-    allowed_raw.extend(sales_menus)
+    # หากต้องการให้ Sales เห็น Report ของตัวเองด้วย ให้เพิ่มรายการในลิสต์นี้
+    allowed_raw.extend(["📋 RFQ Dashboard", "📈 RFQ Update", "📅 Visit Dashboard", 
+                        "➕ Plan & Report Visit", "📈 Sales Performance","👥 Customer Database"])
 # 🔥 แก้ไขตรงนี้: ถ้า User ID คือ 'logistic' ให้เห็น DDP ทันที 
 # ไม่ว่า Role ในระบบจะเป็น planning หรืออะไรก็ตาม
 elif u_id == "logistic" or "log" in u_role:
@@ -146,45 +136,107 @@ elif "planning" in u_role or "mold" in u_role:
     allowed_raw.append("🔄 PO Status Update")
 
 # 3. สร้างรายการแท็บจริง
-allowed_raw = [r.strip() for r in allowed_raw]
 allowed_tabs = [menu for menu in master_order if menu in allowed_raw]
-# # --- DEBUG บรรทัดนี้จะทำงานได้แล้ว ---
-# st.write(f"Keng เห็นเมนู: {allowed_tabs}")
+# # ==================================================
+# # 4. UI RENDER & ROUTING
+# # ==================================================
+# if allowed_tabs:
+#     tabs = st.tabs(allowed_tabs) 
+
+#     for idx, tab_name in enumerate(allowed_tabs):
+#         with tabs[idx]:
+#             # --- ระบบ PO ---
+#             if tab_name == "📊 Dashboard PO":
+#                 show_po_dashboard(HEADERS, URL_PO, role)
+#             elif tab_name == "➕ Create PO":
+#                 show_po_create(HEADERS, URL_PO)
+#             elif tab_name == "🔄 PO Status Update":
+#                 show_po_update_center(HEADERS, URL_PO, role)
+#             elif tab_name == "📊 DDP Cost Analysis": # ✅ ย้ายขึ้นมาในกลุ่ม PO
+#                 show_ddp_cost_analysis(HEADERS, URL_PO, role)
+
+#             # --- ระบบ RFQ ---
+#             elif tab_name == "📋 RFQ Dashboard": 
+#                 show_rfq_dashboard(HEADERS, URL_RFQ)
+#             elif tab_name == "➕ Create RFQ": 
+#                 show_rfq_create(HEADERS, URL_RFQ)
+#             elif tab_name == "📈 RFQ Update": 
+#                 show_rfq_update(HEADERS, URL_RFQ)
+#             elif tab_name == "📈 RFQ Performance Summary": # <--- เงื่อนไขใหม่
+#                 show_rfq_performance_dashboard(HEADERS, URL_RFQ)
+
+#             # --- ระบบ Sales Visit ---
+#             elif tab_name == "📅 Visit Dashboard": 
+#                 show_visit_dashboard(HEADERS, URL_VISIT)
+#             elif tab_name == "➕ Plan & Report Visit": 
+#                 show_visit_management(HEADERS, URL_VISIT, user['name'], role)
+
+#             # --- ✅ เพิ่มระบบ Sales Performance Report ---
+#             # ใน loop ของ allowed_tabs
+#             elif tab_name == "📈 Sales Performance":
+#                 show_sales_performance_report() # เรียกใช้ฟังก์ชันจากไฟล์ใหม่
+
+#             # --- เมนูเดิม (กันเหนียว) ---
+#             elif tab_name == "🏭 Planning Update":
+#                 show_planning_update(HEADERS, URL_PO, role)
+#             elif tab_name == "🚚 Logistic Update":
+#                 show_logistic_update(HEADERS, URL_PO, role)
+
+#             elif tab_name == "👥 Customer Database":
+#                 # ส่ง HEADERS และ URL ไปทำงานเหมือน Module อื่นๆ เป๊ะ
+#                 show_customer_module(HEADERS, URL_CUSTOMERS)
+#             elif tab_name == "📄 Create Quotation":
+#                 show_quotation_module(HEADERS, URL_QT, URL_CUSTOMERS)
 # ==================================================
-# 4. UI RENDER & ROUTING (ใน main.py)
+# 4. UI RENDER & ROUTING (ฉบับเสถียรที่คุณต้องการ)
 # ==================================================
 if allowed_tabs:
-    # สร้าง Tab ตามจำนวนเมนูที่ Keng (sales1) มีสิทธิ์เห็น
-    main_tabs = st.tabs(allowed_tabs) 
-    
+    tabs = st.tabs(allowed_tabs) 
+
     for idx, tab_name in enumerate(allowed_tabs):
-        with main_tabs[idx]:
+        with tabs[idx]:
             # --- ระบบ PO ---
             if tab_name == "📊 Dashboard PO":
                 show_po_dashboard(HEADERS, URL_PO, role)
-            
+            elif tab_name == "➕ Create PO":
+                show_po_create(HEADERS, URL_PO)
+            elif tab_name == "🔄 PO Status Update":
+                show_po_update_center(HEADERS, URL_PO, role)
+            elif tab_name == "📊 DDP Cost Analysis": 
+                show_ddp_cost_analysis(HEADERS, URL_PO, role)
+
             # --- ระบบ RFQ ---
             elif tab_name == "📋 RFQ Dashboard": 
                 show_rfq_dashboard(HEADERS, URL_RFQ)
+            elif tab_name == "➕ Create RFQ": 
+                # ✅ ปรับเป็น 2 args ป้องกัน TypeError
+                show_rfq_create(HEADERS, URL_RFQ)
             elif tab_name == "📈 RFQ Update": 
                 show_rfq_update(HEADERS, URL_RFQ)
-            
+            elif tab_name == "📈 RFQ Performance Summary": 
+                # ✅ Director/Admin จะเห็นข้อมูลในหน้านี้แล้ว
+                show_rfq_performance_dashboard(HEADERS, URL_RFQ)
+
             # --- ระบบ Sales Visit ---
             elif tab_name == "📅 Visit Dashboard": 
                 show_visit_dashboard(HEADERS, URL_VISIT)
             elif tab_name == "➕ Plan & Report Visit": 
                 show_visit_management(HEADERS, URL_VISIT, user['name'], role)
 
-            # --- ระบบ Sales Performance ---
+            # --- ระบบ Sales Performance Report ---
             elif tab_name == "📈 Sales Performance":
                 show_sales_performance_report()
 
-            # --- ✅ จุดสำคัญ: ระบบ Customer Database ---
+            # --- ระบบ Customer Database ---
             elif tab_name == "👥 Customer Database":
-                # เรียกแค่ฟังก์ชันเดียว "ห้ามสร้าง st.tabs ซ้อนตรงนี้"
                 show_customer_module(HEADERS, URL_CUSTOMERS, role)
-                
+
             # --- ระบบ Quotation ---
             elif tab_name == "📄 Create Quotation":
                 show_quotation_module(HEADERS, URL_QT, URL_CUSTOMERS)
 
+            # --- เมนูเดิม (กันเหนียว) ---
+            elif tab_name == "🏭 Planning Update":
+                show_planning_update(HEADERS, URL_PO, role)
+            elif tab_name == "🚚 Logistic Update":
+                show_logistic_update(HEADERS, URL_PO, role)
