@@ -26,7 +26,7 @@ def show_customer_module(headers, url, role):
             data = res.json()
             if data:
                 df = pd.DataFrame(data)
-                cols = ['cust_code', 'cust_name', 'bu_type', 'bu_details', 'address', 'marketing_status']
+                cols = ['cust_code', 'cust_name', 'bu_type', 'bu_details', 'address', 'mkt_status']
                 available_cols = [c for c in cols if c in df.columns]
                 st.dataframe(df[available_cols], use_container_width=True, hide_index=True)
             else:
