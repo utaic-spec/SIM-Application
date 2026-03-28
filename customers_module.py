@@ -3,9 +3,97 @@ import streamlit as st
 import pandas as pd
 import requests
 import time
+import plotly.express as px 
 
 def show_customer_module(headers, url, role):
+  
+    ##############################
     st.subheader("👥 Customer Database Management")
+
+    # ==================================================
+    # 📊 1. CUSTOMER STRATEGIC DASHBOARD (NEW FEATURES)
+    # ==================================================
+    with st.expander("📈 คลิกเพื่อเปิด/ปิด แดชบอร์ดวิเคราะห์ข้อมูลลูกค้า (Strategic Dashboard)", expanded=False):
+        st.markdown("#### 🎯 Executive Summary & Marketing Insights")
+        
+        # 1.1 ดึงข้อมูลสดมาคำนวณ Dashboard
+        res_dash = requests.get(f"{url}?select=*", headers=headers)
+        if res_dash.status_code == 200 and res_dash.json():
+            df_dash = pd.DataFrame(res_dash.json())
+            
+            # --- KPI CARDS (แถวบนสุด) ---
+            kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
+            
+            # KPI 1: Total Customers
+            total_cust = len(df_dash)
+            kpi_col1.metric(label="👥 ลูกค้าทั้งหมดในมือ", value=f"{total_cust:,} ราย")
+            
+            # KPI 2: Active RFQ Status
+            if 'mkt_status' in df_dash.columns:
+                active_rfq = len(df_dash[df_dash['mkt_status'] == 'RFQ'])
+                kpi_col2.metric(label="📈 อยู่ระหว่าง RFQ", value=f"{active_rfq} ราย", delta=f"{len(df_dash[df_dash['mkt_status'] == 'Potentials'])} Potentials", delta_color="normal")
+            
+            # KPI 3: Top Industry Segment
+            if 'industry_segment' in df_dash.columns and not df_dash['industry_segment'].isnull().all():
+                top_segment = df_dash['industry_segment'].value_counts().idxmax()
+                top_segment_count = df_dash['industry_segment'].value_counts().max()
+                kpi_col3.metric(label="🏢 กลุ่มอุตสาหกรรมหลัก", value=top_segment, delta=f"{top_segment_count} ราย")
+
+            st.divider()
+
+            # --- CHARTS ROW (แถวกราฟ) ---
+            chart_col1, chart_col2 = st.columns(2)
+            
+            # กราฟ 1: Marketing Funnel Status (Pie Chart) - ตอบโจทย์ผู้บริหาร
+            if 'mkt_status' in df_dash.columns:
+                df_mkt = df_dash['mkt_status'].value_counts().reset_index()
+                df_mkt.columns = ['Status', 'Count']
+                
+                # กำหนดสีตามสถานะเพื่อความสวยงาม
+                color_map_mkt = {
+                    'Potentials': '#FFA500', # ส้ม
+                    'RFQ': '#1E90FF',        # ฟ้า
+                    'Award': '#32CD32',      # เขียว
+                    'Not Interest': '#FF4500' # แดงส้ม
+                }
+                
+                fig_mkt = px.pie(df_mkt, values='Count', names='Status', title='📊 สัดส่วนสถานะการตลาด (Customer Funnel)',
+                                 color='Status', color_discrete_map=color_map_mkt, hole=0.4)
+                fig_mkt.update_traces(textposition='inside', textinfo='percent+label')
+                chart_col1.plotly_chart(fig_mkt, use_container_width=True)
+            
+            # กราฟ 2: Industry Segment Distribution (Bar Chart) - ตอบโจทย์การตลาด
+            if 'industry_segment' in df_dash.columns:
+                df_segment = df_dash['industry_segment'].value_counts().reset_index()
+                df_segment.columns = ['Segment', 'Count']
+                
+                fig_seg = px.bar(df_segment, x='Segment', y='Count', title='🏢 การกระจายตัวตามกลุ่มอุตสาหกรรม',
+                                 color='Count', color_continuous_scale='Blues', text='Count')
+                fig_seg.update_layout(xaxis_title="Industry Segment", yaxis_title="จำนวนลูกค้า")
+                fig_seg.update_traces(textposition='outside')
+                chart_col2.plotly_chart(fig_seg, use_container_width=True)
+
+            st.divider()
+            
+            # กราฟ 3: Business Unit Portfolio (Horizontal Bar) - ตอบโจทย์ Risk Management
+            if 'bu_type' in df_dash.columns:
+                # จัดการข้อมูล BU ที่อาจจะมีหลายค่า (Mass, Mold)
+                df_bu_raw = df_dash['bu_type'].dropna().str.split(', ').explode()
+                df_bu = df_bu_raw.value_counts().reset_index()
+                df_bu.columns = ['BU Type', 'Count']
+                
+                fig_bu = px.bar(df_bu, x='Count', y='BU Type', title='📈 พอร์ตโฟลิโอตามกลุ่มธุรกิจ (BU)',
+                                orientation='h', color='Count', color_continuous_scale='Reds', text='Count')
+                fig_bu.update_layout(xaxis_title="จำนวนลูกค้า", yaxis_title="Business Unit")
+                fig_bu.update_traces(textposition='outside')
+                st.plotly_chart(fig_bu, use_container_width=True)
+                
+        else:
+            st.info("📊 กำลังรอข้อมูลเพื่อสร้างแดชบอร์ด...")
+
+    st.divider()
+ 
+    #############################
 
     # --- 1. จัดการเรื่องสิทธิ์ (Role Logic) ---
     # ตั้งค่า Tab พื้นฐานที่ทุกคนเห็น (Sales เห็นแค่ 2 อันนี้)
