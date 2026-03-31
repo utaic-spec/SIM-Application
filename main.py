@@ -125,7 +125,7 @@ if u_id in ["director", "sales_admin"]:
 
 elif u_role == "sales":
     # หากต้องการให้ Sales เห็น Report ของตัวเองด้วย ให้เพิ่มรายการในลิสต์นี้
-    allowed_raw.extend(["📋 RFQ Dashboard", "📈 RFQ Update", "📅 Visit Dashboard", 
+    allowed_raw.extend(["📋 RFQ Dashboard", "➕ Create RFQ","📈 RFQ Update", "📅 Visit Dashboard", 
                         "➕ Plan & Report Visit", "📈 Sales Performance","👥 Customer Database"])
 # 🔥 แก้ไขตรงนี้: ถ้า User ID คือ 'logistic' ให้เห็น DDP ทันที 
 # ไม่ว่า Role ในระบบจะเป็น planning หรืออะไรก็ตาม
