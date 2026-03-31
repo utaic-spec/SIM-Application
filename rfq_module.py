@@ -26,7 +26,7 @@ def send_auto_email(rfq_data):
     admin_team = [
         "wattanapon.s@siamintermold.com", "paitoon.b@siamintermold.com",
         "utai.c@siamintermold.com", "rewat.m@siamintermold.com",
-        "admincenter@siamintermold.com"
+        "admincenter@siamintermold.com","nipat@siamintermold.com"
     ]
     
     staff_team = []
