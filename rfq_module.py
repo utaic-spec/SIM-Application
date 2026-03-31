@@ -208,7 +208,7 @@ def show_rfq_create(HEADERS, URL_RFQ):
         with c3:
             r_vol = st.number_input("Volumes (Yearly)", min_value=0)
             r_target = st.date_input("Quotation Target Date")
-            r_sales = st.selectbox("Sales Owner", ["K.Utai", "K.Rewat", "Sales"])
+            r_sales = st.selectbox("Sales Owner", ["K.Utai", "K.Rewat", "K.Keng"])
         
         r_link = st.text_input("🔗 Google Drive Folder Link")
         r_rem = st.text_area("Remark / Detail")
