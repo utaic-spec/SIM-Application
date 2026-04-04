@@ -26,7 +26,7 @@ def send_auto_email(rfq_data):
     admin_team = [
         "wattanapon.s@siamintermold.com", "paitoon.b@siamintermold.com",
         "utai.c@siamintermold.com", "rewat.m@siamintermold.com",
-        "admincenter@siamintermold.com","nipat@siamintermold.com"
+        "admincenter@siamintermold.com"
     ]
     
     staff_team = []
@@ -191,30 +191,69 @@ def show_rfq_dashboard(HEADERS, URL_RFQ):
 # ==============================================================================
 # SECTION 4: RFQ REGISTRATION (NEW ENTRY)
 # ==============================================================================
-def show_rfq_create(HEADERS, URL_RFQ):
+# เพิ่ม URL_CUSTOMER ใน Arguments ของฟังก์ชันด้วย
+def show_rfq_create(HEADERS, URL_RFQ): 
     """หน้าสำหรับกรอกข้อมูลเพื่อลงทะเบียน RFQ ใหม่ลงในระบบ"""
     st.subheader("➕ Register New RFQ")
+    
+    # กำหนด URL ให้ถูกต้อง
+    URL_CUSTOMER = "https://yqljvjfffrthnlbyitfw.supabase.co/rest/v1/customers"
+    
+    # --- 1. ดึงรายชื่อลูกค้าจากฐานข้อมูลหลัก ---
+    cust_options = []
+    try:
+        # แก้ไข: เปลี่ยนเป็น cust_name ตามใน Supabase ของคุณ
+        res_cust = requests.get(
+            f"{URL_CUSTOMER}?select=cust_name&order=cust_name.asc", 
+            headers=HEADERS
+        )
+        
+        if res_cust.status_code == 200:
+            data = res_cust.json()
+            # แก้ไข: เปลี่ยนคีย์เป็น cust_name
+            cust_options = [item['cust_name'] for item in data if item.get('cust_name')]
+            
+            # ลบชื่อซ้ำและเรียงลำดับ
+            cust_options = sorted(list(set(cust_options)))
+        else:
+            st.error(f"❌ ดึงข้อมูลไม่สำเร็จ (Status: {res_cust.status_code})")
+            
+    except Exception as e:
+        st.error(f"❌ Connection Error: {e}")
+
+    # กรณีไม่มีข้อมูล ให้ใส่ค่า Default กันหน้าจอพัง
+    if not cust_options:
+        cust_options = ["-- ไม่มีรายชื่อลูกค้าในระบบ --"]
+
+    # --- 2. แสดงผลใน Form ---
     with st.form("f_rfq_create", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
         with c1:
             r_id = st.text_input("RFQ ID *")
             r_part = st.text_input("Part No. *")
-            r_bu = st.selectbox("RFQ BU", ["Mold", "Mass","Mass&Mold"])
-            r_cust = st.text_input("Customer Name *")
+            r_bu = st.selectbox("RFQ BU", ["Mold", "Mass", "Mass&Mold"])
+            
+            # แสดงรายชื่อลูกค้าที่ดึงมาจริง
+            r_cust = st.selectbox("Customer Name *", options=cust_options)
+            
+        # ... ส่วน c2, c3 และปุ่ม Submit เหมือนเดิม ...
+            
         with c2:
             r_proc = st.multiselect("Process", ["Die Casting", "FN", "SB", "T5", "Coating", "MC", "New-Mold", "Mold-Part", "Mold-OH", "Mold-Repair"])
             r_mat = st.text_input("Material")
             r_tool = st.multiselect("Tooling", ["New Mold", "Transferred Mold", "New Jigs", "Transferred Jigs"])
+        
         with c3:
             r_vol = st.number_input("Volumes (Yearly)", min_value=0)
             r_target = st.date_input("Quotation Target Date")
-            r_sales = st.selectbox("Sales Owner", ["K.Utai", "K.Rewat", "K.Keng"])
+            r_sales = st.selectbox("Sales Owner", ["K.Utai", "K.Rewat", "Sales"])
         
         r_link = st.text_input("🔗 Google Drive Folder Link")
         r_rem = st.text_area("Remark / Detail")
         
         if st.form_submit_button("Submit & Save"):
-            if r_id and r_cust and r_part:
+            # เช็คว่าไม่ได้เลือกตัวเลือกที่บอกว่า "ไม่พบรายชื่อ"
+            if r_id and r_cust and r_part and r_cust != "-- ไม่พบรายชื่อลูกค้า กรุณาเพิ่มข้อมูลก่อน --":
                 payload = {
                     "rfq_id": r_id, "part_no": r_part, "rfq_bu": r_bu, "customer": r_cust,
                     "process": ", ".join(r_proc), "material": r_mat, "tooling_type": ", ".join(r_tool),
@@ -225,6 +264,8 @@ def show_rfq_create(HEADERS, URL_RFQ):
                 res = requests.post(URL_RFQ, headers=HEADERS, json=payload)
                 if res.status_code in [200, 201]:
                     st.success("✅ บันทึกข้อมูล RFQ เรียบร้อย!")
+                    # สถานะลูกค้าจะถูก Update เป็น 'RFQ' อัตโนมัติด้วย SQL Trigger ใน Supabase
+                    
                     with st.spinner("📧 กำลังส่งเมลแจ้งเตือนทีมงาน..."):
                         if send_auto_email(payload):
                             st.success("ส่งเมลสำเร็จ!")
@@ -235,8 +276,7 @@ def show_rfq_create(HEADERS, URL_RFQ):
                 else:
                     st.error(f"❌ Error: {res.text}")
             else:
-                st.warning("⚠️ Fill required fields (*)")
-
+                st.warning("⚠️ กรุณากรอกข้อมูลให้ครบถ้วน และตรวจสอบชื่อลูกค้า")
 # ==============================================================================
 # SECTION 5: RFQ UPDATE & QUOTATION SUBMISSION
 # ==============================================================================
