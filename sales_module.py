@@ -17,7 +17,15 @@ def show_sales_performance_report():
         url = links.get(year)
         try:
             df = pd.read_excel(url, header=4)
+    
+            # ✅ แก้ไข: แปลงวันที่และลบแถวที่เป็น NaT (วันที่ผิด) ออกป้องกัน Error ตอนกรอง
             df['วันที่'] = pd.to_datetime(df['วันที่'], errors='coerce')
+            df = df.dropna(subset=['วันที่']) # ลบแถวที่ไม่มีวันที่ออกทันที
+            
+            # ✅ แก้ไข: มั่นใจว่าคอลัมน์คำนวณเป็นตัวเลขแน่นอน
+            df['จำนวน'] = pd.to_numeric(df['จำนวน'], errors='coerce').fillna(0)
+            df['มูลค่าสินค้า'] = pd.to_numeric(df['มูลค่าสินค้า'], errors='coerce').fillna(0)
+            
             df['ลูกค้า'] = df['ลูกค้า'].astype(str).str.strip()
             df['รหัสสินค้า'] = df['รหัสสินค้า'].astype(str).str.strip()
             return df
