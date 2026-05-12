@@ -65,17 +65,17 @@ def show_visit_dashboard(HEADERS, URL_VISIT):
             # --- 2.3 แสดงตารางข้อมูล ---
             st.write(f"พบข้อมูลทั้งหมด {len(df_filtered)} รายการ")
             st.dataframe(
-                df_filtered[['visit_date', 'customer_name', 'objective', 'status', 'summary', 'visit_report', 'sales_owner']],
-                column_config={
-                    "visit_date": st.column_config.DateColumn("วันที่", format="DD/MM/YYYY"),
-                    "customer_name": "ลูกค้า",
-                    "objective": "วัตถุประสงค์",
-                    "status": "สถานะ",
-                    "summary": "📝 แผนงาน (Plan)",
-                    "visit_report": "✅ รายงานผล (Report)",
-                    "sales_owner": "Sales"
-                },
-                use_container_width=True, 
+            df_filtered[['visit_date', 'customer_name', 'objective', 'status', 'visit_report', 'feedback', 'is_rfq_received', 'sales_owner']],
+            column_config={
+                "visit_date": st.column_config.DateColumn("วันที่", format="DD/MM/YYYY"),
+                "customer_name": "ลูกค้า",
+                "status": "สถานะ",
+                "visit_report": "✅ รายงานผล",
+                "feedback": "💬 Feedback",
+                "is_rfq_received": st.column_config.CheckboxColumn("ได้รับ RFQ?"), # แสดงผลเป็นติ๊กถูกในตาราง
+                "sales_owner": "Sales"
+            },
+                        use_container_width=True, 
                 hide_index=True
             )
         else:
@@ -159,8 +159,8 @@ def show_visit_management(HEADERS, URL_VISIT, current_user_name, user_role):
                 if not df_to_report.empty:
                     df_to_report['display'] = df_to_report['visit_date'].astype(str) + " | " + df_to_report['customer_name']
                     
-                    # --- ฟอร์มรายงานผล ---
-                    with st.form("f_visit_report_update"):
+                    # --- ฟอร์มรายงานผล (ปรับปรุงใหม่) ---
+                    with st.form("f_visit_report_update_v2"):
                         sel_v = st.selectbox("เลือกงานที่ต้องการรายงานผล", options=df_to_report['display'].tolist())
                         selected_row = df_to_report[df_to_report['display'] == sel_v].iloc[0]
                         
@@ -170,22 +170,41 @@ def show_visit_management(HEADERS, URL_VISIT, current_user_name, user_role):
                         
                         c1, c2 = st.columns(2)
                         with c1: 
-                            new_status = st.selectbox("ปรับสถานะงาน", ["Completed", "Postponed", "Called", "Mailed", "Cancelled"])
+                            new_status = st.selectbox("ปรับสถานะงาน", ["Completed", "Postponed", "Cancelled"])
+                        with c2:
+                            # 🎯 ส่วนที่เพิ่มใหม่: RFQ Check
+                            is_rfq = st.checkbox("🚩 ได้รับ RFQ ใหม่จากงานนี้", help="ติ๊กถูกหากลูกค้าให้ RFQ มาศึกษาต่อ")
                         
-                        v_actual_report = st.text_area("✍️ สรุปผลการเข้าพบ (Actual Report)", placeholder="พิมพ์สรุปเนื้อหาที่ได้คุยกับลูกค้าที่นี่...")
+                        # ✍️ สรุปผลการเข้าพบ
+                        v_actual_report = st.text_area("✍️ สรุปผลการเข้าพบ (Actual Report)", 
+                                                     placeholder="คุยเรื่องอะไรไปบ้าง? ติดปัญหาอะไรไหม?")
                         
-                        if st.form_submit_button("📤 ส่งรายงานผล", use_container_width=True, type="primary"):
+                        # 💬 Feedback จากลูกค้า
+                        v_feedback = st.text_area("💬 Feedback / ความเห็นจากลูกค้า", 
+                                                placeholder="ลูกค้าบ่นเรื่องอะไร หรือชมเรื่องอะไรเป็นพิเศษไหม?")
+                        
+                        if st.form_submit_button("📤 ส่งรายงานผลและปิดงาน", use_container_width=True, type="primary"):
                             if v_actual_report: 
                                 patch_data = {
                                     "status": new_status,
-                                    "visit_report": v_actual_report
+                                    "visit_report": v_actual_report,
+                                    "feedback": v_feedback,           # เพิ่มฟิลด์ Feedback
+                                    "is_rfq_received": is_rfq          # เพิ่มฟิลด์ RFQ Check
                                 }
-                                # ใช้ row['id'] หรือรหัสอ้างอิงของ Supabase
-                                resp = requests.patch(f"{URL_VISIT}?id=eq.{selected_row['id']}", headers=HEADERS, json=patch_data)
+                                
+                                # ส่งข้อมูลไปที่ Supabase
+                                resp = requests.patch(f"{URL_VISIT}?id=eq.{selected_row['id']}", 
+                                                     headers=HEADERS, json=patch_data)
                                 
                                 if resp.status_code in [200, 204]:
-                                    st.success("✅ อัปเดตสถานะและรายงานผลเรียบร้อย!")
-                                    time.sleep(1)
+                                    # หากมี RFQ ให้แสดงความยินดีหน่อย
+                                    if is_rfq:
+                                        st.balloons()
+                                        st.success("🎉 สุดยอด! บันทึกรายงานผลและรับ RFQ ใหม่เข้าสู่ระบบแล้ว")
+                                    else:
+                                        st.success("✅ อัปเดตรายงานผลเรียบร้อย!")
+                                        
+                                    time.sleep(1.5)
                                     st.rerun()
                                 else:
                                     st.error(f"❌ ไม่สามารถส่งข้อมูลได้: {resp.text}")
@@ -193,5 +212,3 @@ def show_visit_management(HEADERS, URL_VISIT, current_user_name, user_role):
                                 st.warning("⚠️ กรุณากรอกรายละเอียดผลการเข้าพบก่อนส่ง")
                 else:
                     st.warning("🔎 ไม่พบรายการที่ตรงกับเงื่อนไขการค้นหา")
-
-
