@@ -7,19 +7,7 @@ from datetime import date
 def show_sales_performance_report():
     st.subheader("📊 Sales Performance & Analysis (Multi-Year)")
 
-    # --- 1. Filter UI ---
-    with st.container(border=True):
-        c1, c2, c3 = st.columns([1, 1, 1])
-        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        with c1: 
-            sel_year = st.selectbox("📅 Select Year", [2026, 2025], index=0, key="sr_year")
-        with c2: 
-            start_m = st.selectbox("📅 Start", months, index=0, key="sr_start")
-        with c3: 
-            default_end = min(date.today().month - 1, 11)
-            end_m = st.selectbox("📅 End", months, index=default_end, key="sr_end")
-
-    # --- 2. Load Data ---
+    # --- 1. Load Data Function (เอาไว้บนสุดของฟังก์ชัน) ---
     @st.cache_data(ttl=3600)
     def load_sales_data(year):
         links = {
@@ -27,32 +15,73 @@ def show_sales_performance_report():
             2026: "https://docs.google.com/spreadsheets/d/1FgvIZue-HAcqx5AvZ_-H4Rq8U_mcCdOzNdWPt9g5Ufo/export?format=xlsx"
         }
         url = links.get(year)
-        df = pd.read_excel(url, header=4)
-        df['วันที่'] = pd.to_datetime(df['วันที่'], errors='coerce')
-        df['ลูกค้า'] = df['ลูกค้า'].astype(str).str.strip()
-        df['รหัสสินค้า'] = df['รหัสสินค้า'].astype(str).str.strip()
-        return df
+        try:
+            df = pd.read_excel(url, header=4)
+            df['วันที่'] = pd.to_datetime(df['วันที่'], errors='coerce')
+            df['ลูกค้า'] = df['ลูกค้า'].astype(str).str.strip()
+            df['รหัสสินค้า'] = df['รหัสสินค้า'].astype(str).str.strip()
+            return df
+        except Exception as e:
+            st.error(f"Error loading Excel: {e}")
+            return pd.DataFrame()
 
-    try:
+    # --- 2. Step 1: เลือกปีก่อนเลย เพื่อโหลด Data หลัก ---
+    months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    
+    with st.container(border=True):
+        c1, c2, c3 = st.columns([1, 1, 1])
+        sel_year = c1.selectbox("📅 Select Year", [2026, 2025], index=0, key="sr_year")
+        
+        # --- หัวใจสำคัญ: โหลด Data มาถือไว้ในมือให้สำเร็จก่อนทำอย่างอื่น ---
         invoices = load_sales_data(sel_year)
-    except Exception as e:
-        st.error(f"❌ Load Error: {e}")
-        return
+        
+        if invoices.empty:
+            st.warning("⚠️ ไม่มีข้อมูลสำหรับปีที่เลือก")
+            return
 
-    # --- 3. Date Filter ---
+        # --- Step 2: เลือกช่วงเดือน ---
+        start_m = c2.selectbox("📅 Start Month", months, index=0, key="sr_start")
+        default_end = min(date.today().month - 1, 11)
+        end_m = c3.selectbox("📅 End Month", months, index=default_end, key="sr_end")
+
+        # --- Step 3: ทำตัวกรอง Multiselect จากข้อมูลที่โหลดมาแล้ว ---
+        r2_c1, r2_c2 = st.columns(2)
+        all_customers = sorted([c for c in invoices['ลูกค้า'].unique() if c != 'nan'])
+        sel_customers = r2_c1.multiselect("👤 กรองตามชื่อลูกค้า", all_customers, key="f_cust")
+        
+        all_parts = sorted([p for p in invoices['รหัสสินค้า'].unique() if p != 'nan'])
+        sel_parts = r2_c2.multiselect("📦 กรองตามพาร์ทนัมเบอร์", all_parts, key="f_part")
+
+    # --- 3. Data Filtering Logic ---
+    df_filtered = invoices.copy()
+    
+    # กรองวันที่
     start_date = pd.to_datetime(f"{sel_year}-{months.index(start_m)+1}-01")
     end_date = (pd.to_datetime(f"{sel_year}-{months.index(end_m)+1}-01") + pd.offsets.MonthEnd(0))
-    df_filtered = invoices[(invoices['วันที่'] >= start_date) & (invoices['วันที่'] <= end_date)].copy()
+    df_filtered = df_filtered[(df_filtered['วันที่'] >= start_date) & (df_filtered['วันที่'] <= end_date)]
 
-    # --- 4. Mold-DP Mapping & Calculation ---
+    # กรองตามลูกค้าและพาร์ท (ถ้ามีการเลือก)
+    if sel_customers:
+        df_filtered = df_filtered[df_filtered['ลูกค้า'].isin(sel_customers)]
+    if sel_parts:
+        df_filtered = df_filtered[df_filtered['รหัสสินค้า'].isin(sel_parts)]
+
+    # --- 4. สร้างคอลัมน์ Mold_DP_Value ทันที (ต้องทำก่อนไปขั้นตอนที่ 5) ---
     dp_mapping = {
-        '5612603000A': 0, '5612603100A': 0,
+        '5612603000A': 12.67, '5612603100A': 10.79,
         'T907055A': 0, 'Z0011377A': 16.67, 'Z0011378A': 16.38
     }
     
-    df_filtered['Mold_DP_Value'] = df_filtered.apply(
-        lambda x: (x['จำนวน'] if pd.notnull(x['จำนวน']) else 0) * dp_mapping.get(str(x['รหัสสินค้า']), 0), axis=1
-    )
+    # สร้างคอลัมน์ว่างไว้ก่อนเพื่อป้องกัน KeyError
+    df_filtered['Mold_DP_Value'] = 0.0
+    
+    if not df_filtered.empty:
+        df_filtered['Mold_DP_Value'] = df_filtered.apply(
+            lambda x: (x['จำนวน'] if pd.notnull(x['จำนวน']) else 0) * dp_mapping.get(str(x['รหัสสินค้า']), 0), axis=1
+        )
+
+    # --- 5. ไปต่อที่ Logic คำนวณ % และแบ่ง BU (df_filtered จะมีความแม่นยำสูงแล้ว) ---
+    # ... (ส่วนคำนวณ Mold_DP_Value และแบ่ง BU เหมือนโค้ดก่อนหน้าของคุณ) ...
 
     # --- 5. Data Segmentation ---
     onesim_only_cust = ['วิพัด โนนแสง', 'ธนะพงษ์ แก้วมา', 'ที.จี.เวนดิ้ง แอนด์ โชว์เคส อินดัสทรีส์ จำกัด', 'ณัฐฐา ยาชูชีพ', 'ชนะชัย อิเลคทรอนิค รีไซเคิล จำกัด', 'บริษัท ศรจินดา สหกิจ จำกัด', 'บริษัท ผลาชีวะทรานสปอร์ต จำกัด', 'ผลาชีวะทรานสปอร์ต จำกัด']
@@ -67,7 +96,6 @@ def show_sales_performance_report():
     df_mold = df_filtered[mask_mold].copy()
     df_mass = df_filtered[(~mask_mold) & (~df_filtered['ลูกค้า'].isin(onesim_only_cust))].copy()
     
-    # คำนวณยอดโอนค่า DP
     total_dp_transfer = df_mass['Mold_DP_Value'].sum()
     df_mass['Net_Sales'] = df_mass['มูลค่าสินค้า'] - df_mass['Mold_DP_Value']
 
@@ -77,17 +105,13 @@ def show_sales_performance_report():
     with t_mass:
         if sel_year == 2026:
             render_bu_comparison(df_mass, "MASS", start_m, end_m, sales_col='Net_Sales')
-        
         st.markdown("### 📦 MASS BU Analysis (Net of Mold-DP)")
         st.warning(f"📉 ยอดหัก Mold-DP ออกจาก Mass: **{total_dp_transfer:,.2f} บาท**")
-        
-        # คืนค่าส่วน Metrics แยกกลุ่ม Valeo / Steel Bush / Other
         render_mass_dashboard(df_mass)
 
     with t_mold:
         if sel_year == 2026:
             render_bu_comparison(df_mold, "MOLD", start_m, end_m, extra_val=total_dp_transfer)
-        
         st.markdown("### 🛠️ Mold BU Analysis")
         st.success(f"📈 ยอดรายได้เพิ่มจาก Mold-DP: **{total_dp_transfer:,.2f} บาท**")
         render_generic_content(df_mold, "Mold", "#E74C3C", extra_val=total_dp_transfer)
@@ -179,6 +203,4 @@ def render_overall_onesim(df, year, start_m, end_m):
             c3.metric("% Achieved", f"{(total_sales/comb_target*100):.1f}%")
 
     st.info(f"💰 One-SIM Grand Total: **{total_sales:,.2f} บาท**")
-
     st.dataframe(df[['วันที่', 'ลูกค้า', 'รหัสสินค้า', 'มูลค่าสินค้า']], use_container_width=True, hide_index=True)
-
