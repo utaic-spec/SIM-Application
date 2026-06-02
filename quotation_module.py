@@ -180,38 +180,44 @@ def show_quotation_module(headers, url_qt, url_cust):
     # 2. ส่วนเลือกใบเดิมเพื่อทำ Revision
     selected_old_qt = st.selectbox("เลือก Quotation เดิมเพื่อทำ Rev ใหม่ (ถ้ามี):", qt_list)
 
-    # 3. เตรียม Logic สำหรับโหลดข้อมูลเก่าลงตารางสินค้า (Session State)
-    if "qt_items_fixed" not in st.session_state:
-        st.session_state.qt_items_fixed = [{"desc": "", "qty": 1, "unit": "Pcs", "price": 0.0} for _ in range(5)]
+    # 3. เตรียม Session State สำหรับตารางสินค้า (ใช้คีย์เดียวร่วมกันทั้งระบบ)
+    if "qt_items" not in st.session_state:
+        st.session_state.qt_items = [{"desc": "", "qty": 1, "unit": "Pcs", "price": 0.0}]
 
     # --- เมื่อมีการเลือกใบเก่า ---
+    # เปลี่ยนมาอัปเดตลงคีย์ 'qt_items' โดยตรง
     if selected_old_qt != "-- สร้างใบใหม่ (New) --" and st.button("🔄 โหลดข้อมูลใบเดิม"):
         old_record = next(item for item in all_qt_data if item['qt_number'] == selected_old_qt)
         
-        # โหลดรายการสินค้ากลับเข้า Session State (สมมติ Column ชื่อ 'items_json')
-        # หมายเหตุ: ถ้าคุณเก็บเป็น String ต้อง json.loads() ก่อนนะครับ
         if 'items_json' in old_record and old_record['items_json']:
             loaded_items = old_record['items_json']
-            # เติมให้ครบ 5 แถวเสมอ
-            while len(loaded_items) < 5:
-                loaded_items.append({"desc": "", "qty": 1, "unit": "Pcs", "price": 0.0})
-            st.session_state.qt_items_fixed = loaded_items[:5]
-            st.success("โหลดรายการสินค้าเดิมเรียบร้อยแล้ว!")
-            st.rerun()
+            
+            # ตรวจสอบรูปแบบกรณีดึงมาจากระบบภายนอกแล้วเป็น String 
+            if isinstance(loaded_items, str):
+                import json
+                try:
+                    loaded_items = json.loads(loaded_items)
+                except Exception as e:
+                    st.error(f"ไม่สามารถแปลงโครงสร้างข้อมูลสินค้าได้: {e}")
+                    loaded_items = []
+
+            if loaded_items:
+                st.session_state.qt_items = loaded_items
+                st.success("โหลดรายการสินค้าเดิมเรียบร้อยแล้ว!")
+                st.rerun()
+            else:
+                st.warning("ไม่พบรายการสินค้าภายในใบเดิมนี้")
 
     # 4. ส่วนกรอกข้อมูลหลัก
     with st.container(border=True):
         group = st.radio("กลุ่มสินค้า", ["Mold", "Mass", "Mass&Mold", "Job Shop"], horizontal=True)
         
-        # Logic การตั้งเลข ID และ Rev
         if selected_old_qt == "-- สร้างใบใหม่ (New) --":
             existing_qt_nos = [item['qt_number'] for item in all_qt_data]
             next_id = get_next_quotation_number(existing_qt_nos, group)
             current_rev = "0"
         else:
-            # ดึงเลข ID เดิมออกมา (ตัดคำว่า Rev. ออก)
             next_id = selected_old_qt.split(" Rev.")[0]
-            # ดึงเลข Rev เดิมมา +1
             try:
                 old_rev = int(selected_old_qt.split(" Rev.")[-1])
                 current_rev = str(old_rev + 1)
@@ -227,50 +233,49 @@ def show_quotation_module(headers, url_qt, url_cust):
         selected_cust = st.selectbox("เลือกลูกค้า", cust_options)
         remark = st.text_area("หมายเหตุ", value="VAT is not included, Price Validity 30 Days")
 
-#########################
-    # 1. จัดการ Session State สำหรับเก็บรายการสินค้า (เริ่มที่ 1 แถวว่าง)
-    if "qt_items" not in st.session_state:
-        st.session_state.qt_items = [{"desc": "", "qty": 1, "unit": "Pcs", "price": 0.0}]
-
+    # -------------------------
+    # รายการสินค้า (ส่วนหัวตารางและลูปจัดการข้อมูล)
+    # -------------------------
     st.subheader("รายการสินค้า")
     
-    # 2. ส่วนหัวตาราง
-    header_cols = st.columns([4, 1, 1, 2, 0.5]) # เพิ่ม column สุดท้ายสำหรับปุ่มลบ
+    header_cols = st.columns([4, 1, 1, 2, 0.5])
     header_cols[0].write("**Description**")
     header_cols[1].write("**Qty**")
     header_cols[2].write("**Unit**")
     header_cols[3].write("**Price**")
-    header_cols[4].write("") # พื้นที่ว่างเหนือปุ่มลบ
+    header_cols[4].write("")
 
-    # 3. ลูปวาดแถวตามจำนวนที่มีใน session_state
+    # ลูปสแกนและแก้ไขค่าลงสเตตตารางหลักโดยตรง
     for i, row in enumerate(st.session_state.qt_items):
         cols = st.columns([4, 1, 1, 2, 0.5])
         
-        # เก็บค่าลงใน session_state โดยตรง
-        st.session_state.qt_items[i]['desc'] = cols[0].text_input(f"d_{i}", value=row['desc'], label_visibility="collapsed")
-        st.session_state.qt_items[i]['qty'] = cols[1].number_input(f"q_{i}", value=row['qty'], min_value=0, label_visibility="collapsed")
-        st.session_state.qt_items[i]['unit'] = cols[2].text_input(f"u_{i}", value=row['unit'], label_visibility="collapsed")
-        st.session_state.qt_items[i]['price'] = cols[3].number_input(f"p_{i}", value=row['price'], min_value=0.0, format="%.2f", label_visibility="collapsed")
+        # ปรับการดึงค่ามาแสดงผล (ใช้ `.get()` เป็นเซฟการ์ดป้องกันข้อมูลเก่ามีโครงสร้างฟิลด์ไม่ครบ)
+        desc_val = row.get('desc', '')
+        qty_val = int(row.get('qty', 1))
+        unit_val = row.get('unit', 'Pcs')
+        price_val = float(row.get('price', 0.0))
+
+        st.session_state.qt_items[i]['desc'] = cols[0].text_input(f"d_{i}", value=desc_val, label_visibility="collapsed")
+        st.session_state.qt_items[i]['qty'] = cols[1].number_input(f"q_{i}", value=qty_val, min_value=0, label_visibility="collapsed")
+        st.session_state.qt_items[i]['unit'] = cols[2].text_input(f"u_{i}", value=unit_val, label_visibility="collapsed")
+        st.session_state.qt_items[i]['price'] = cols[3].number_input(f"p_{i}", value=price_val, min_value=0.0, format="%.2f", label_visibility="collapsed")
         
-        # ปุ่มลบรายแถว (ถังขยะ)
         if cols[4].button("🗑️", key=f"del_{i}"):
             st.session_state.qt_items.pop(i)
             st.rerun()
 
-    # 4. ปุ่มเพิ่มรายการ (+)
     if st.button("➕ เพิ่มรายการสินค้า", use_container_width=True):
         st.session_state.qt_items.append({"desc": "", "qty": 1, "unit": "Pcs", "price": 0.0})
         st.rerun()
 
-    # 5. คำนวณยอดรวม (กรองเฉพาะแถวที่มี Description)
-    final_items = [it for it in st.session_state.qt_items if it['desc'].strip() != ""]
-    sub_total = sum(float(it['qty']) * float(it['price']) for it in final_items)
+    # 5. คำนวณยอดรวม 
+    final_items = [it for it in st.session_state.qt_items if str(it.get('desc', '')).strip() != ""]
+    sub_total = sum(float(it.get('qty', 0)) * float(it.get('price', 0.0)) for it in final_items)
     
     st.markdown(f"### ยอดรวมสุทธิ: :blue[{sub_total:,.2f}] บาท")
-##########################
+
     # 6. ปุ่มบันทึก (Supabase + PDF)
     if st.button("💾 บันทึกและดาวน์โหลด PDF", type="primary"):
-        # เตรียมข้อมูลลูกค้า
         cust_code = selected_cust.split(" | ")[0]
         cust_row = cust_df[cust_df['cust_code'] == cust_code].iloc[0]
         cust_info = {
@@ -279,7 +284,6 @@ def show_quotation_module(headers, url_qt, url_cust):
             "contact": cust_row.get('contact_name', 'N/A')
         }
         
-        # เตรียม Payload สำหรับ Supabase (รวมรายการสินค้า items_json เข้าไปด้วย)
         db_payload = {
             "qt_number": full_qt_id, 
             "cust_code": cust_code, 
@@ -287,10 +291,9 @@ def show_quotation_module(headers, url_qt, url_cust):
             "grand_total": float(sub_total), 
             "remark": remark, 
             "group": group,
-            "items_json": final_items  # บันทึกรายการสินค้าเพื่อดึงมาทำ Rev ใหม่ได้
+            "items_json": final_items  
         }
         
-        # --- ส่วนบันทึกข้อมูลเข้า Supabase ---
         try:
             response = requests.post(url_qt, json=db_payload, headers=headers)
             if response.status_code in [200, 201]:
@@ -300,9 +303,7 @@ def show_quotation_module(headers, url_qt, url_cust):
         except Exception as e:
             st.error(f"⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ Database: {e}")
         
-        # --- ส่วนการสร้างและดาวน์โหลด PDF ---
         try:
-            # เตรียมข้อมูลสำหรับส่งเข้าฟังก์ชัน generate_pdf
             pdf_payload = {
                 "qt_number": full_qt_id, 
                 "date": str(qt_date), 
@@ -310,16 +311,14 @@ def show_quotation_module(headers, url_qt, url_cust):
                 "remark": remark
             }
             
-            # เรียกใช้ฟังก์ชัน generate_pdf เดิมที่คุณมี
             pdf_bytes = generate_pdf(pdf_payload, final_items, cust_info)
             
-            # แสดงปุ่มดาวน์โหลด
             st.download_button(
                 label=f"📥 ดาวน์โหลดเอกสาร {full_qt_id}.pdf",
                 data=pdf_bytes, 
                 file_name=f"{full_qt_id}.pdf",
                 mime="application/pdf"
             )
-            st.balloons() # ฉลองความสำเร็จหน่อย!
+            st.balloons() 
         except Exception as e:
             st.error(f"⚠️ เกิดข้อผิดพลาดในการสร้างไฟล์ PDF: {e}")
