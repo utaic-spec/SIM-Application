@@ -1,257 +1,324 @@
 import streamlit as st
 import pandas as pd
 import requests
-import time
-import plotly.express as px 
+from datetime import datetime
+from fpdf import FPDF
+import os
+#########################################
+def get_next_quotation_number(existing_numbers):
+    if not existing_numbers:
+        return "CSP2026001" # ถ้ายังไม่มีข้อมูลเลย ให้เริ่มที่เลขนี้
+    
+    # สมมติรูปแบบคือ CSP + ปี (2026) + เลขรัน 3 หลัก (เช่น 001)
+    # เราจะเอาเลขที่มากที่สุด
+    last_id = sorted(existing_numbers)[-1]
+    
+    # แยกส่วนที่เป็นตัวอักษร/ปี (เช่น CSP2026) และเลขรัน (เช่น 001)
+    # สมมติว่าเลขรันอยู่ 3 หลักสุดท้ายเสมอ
+    prefix = last_id[:-3]
+    last_number = int(last_id[-3:])
+    
+    # เพิ่มเลขเข้าไป 1
+    new_number = last_number + 1
+    
+    # คืนค่ากลับเป็นรูปแบบเดิม เช่น CSP2026002
+    return f"{prefix}{str(new_number).zfill(3)}"
+#########################################################
+def generate_pdf(data, items, cust_info):
+    pdf = FPDF()
+    font_dir = "." 
+    
+    # โหลดฟอนต์ (ประกาศครั้งเดียว)
+    pdf.add_font("THSarabun", "", os.path.join(font_dir, "THSarabunNew.ttf"), uni=True)
+    pdf.add_font("THSarabun", "B", os.path.join(font_dir, "THSarabunNew Bold.ttf"), uni=True)
+    pdf.add_font("THSarabun", "I", os.path.join(font_dir, "THSarabunNew Italic.ttf"), uni=True)
+    pdf.add_font("THSarabun", "BI", os.path.join(font_dir, "THSarabunNew BoldItalic.ttf"), uni=True)
 
-def show_customer_module(headers, url, role):
-    st.subheader("👥 Customer Database Management")
+    pdf.add_page()
+    
+    # --- HEADER & INFO ---
+    pdf.image('sim_logo.png', 10, 10, 40)
+    pdf.set_xy(50, 10)
+    pdf.set_font("THSarabun", 'B', 20)
+    pdf.cell(150, 10, "Siam Inter Mold Co.,Ltd", ln=1, align='R')
+    pdf.set_x(50)
+    pdf.set_font("THSarabun", "", 12)
+    pdf.multi_cell(150, 6, "161/64 Moo.1, Suksawat Rd., Samutprakan 10290 | Tel : 02-006-6046", align='R')
+    pdf.ln(10)
+    
+    pdf.set_x(113)
+    pdf.set_font("THSarabun", "B", 13)
+    pdf.cell(50, 7, "Quotation No:", 0, 0, 'R')
+    pdf.set_font("THSarabun", "", 13)
+    pdf.cell(50, 7, str(data.get('qt_number', '-')), 0, 1, 'L')
+    
+    pdf.ln(5)
+    pdf.set_x(100)
+    pdf.set_font("THSarabun", "B", 13)
+    pdf.cell(50, 7, "Date:", 0, 0, 'R')
+    pdf.set_font("THSarabun", "", 13)
+    pdf.cell(50, 7, str(data.get('date', '')), 0, 1, 'L')
+    pdf.ln(10)
+    
+    pdf.set_font("THSarabun", 'B', 14)
+    pdf.cell(0, 7, "Bill To:", ln=True)
+    pdf.set_font("THSarabun", "", 13)
+    pdf.multi_cell(0, 6, f"Company: {cust_info['name']}\nAddress: {cust_info['address']}\nContact: {cust_info['contact']}")
+    pdf.ln(5)
 
-    # รายชื่อ Sales สำหรับใช้ทั้งไฟล์
-    SALES_LIST = ["K.Keng", "K.Utai", "K.Rewat"]
-
-# ==================================================
-    # 📊 1. CUSTOMER STRATEGIC DASHBOARD (FULL SET - FIXED)
-    # ==================================================
-    with st.expander("📈 คลิกเพื่อเปิด/ปิด แดชบอร์ดวิเคราะห์ข้อมูลลูกค้า", expanded=False):
-        res_dash = requests.get(f"{url}?select=*", headers=headers)
+    # --- TABLE ---
+    pdf.set_fill_color(230, 230, 230)
+    pdf.set_font("THSarabun", 'B', 13)
+    pdf.cell(90, 10, "Description", border=1, fill=True, align='C')
+    pdf.cell(30, 10, "Qty", border=1, fill=True, align='C')
+    pdf.cell(30, 10, "Price", border=1, fill=True, align='C')
+    pdf.cell(30, 10, "Total", border=1, fill=True, align='C', ln=True)
+    
+    pdf.set_font("THSarabun", "", 13)
+    for it in items:
+        qty = float(it['qty'])
+        price = float(it['price'])
+        total = qty * price
+        start_x, start_y = pdf.get_x(), pdf.get_y()
         
-        # 1. เช็คว่าดึงข้อมูลสำเร็จไหม
-        if res_dash.status_code == 200 and res_dash.json():
-            df_dash = pd.DataFrame(res_dash.json())
+        pdf.multi_cell(90, 7, str(it['desc']), border=1, align='L')
+        row_height = pdf.get_y() - start_y
+        
+        pdf.set_xy(start_x + 90, start_y)
+        pdf.cell(30, row_height, "", border=1) 
+        pdf.cell(30, row_height, "", border=1)
+        pdf.cell(30, row_height, "", border=1, ln=True)
+        
+        pdf.set_xy(start_x + 90, start_y)
+        pdf.cell(30, 7, f"{qty:,.0f}", border=0, align='C')
+        pdf.cell(30, 7, f"{price:,.2f}", border=0, align='R')
+        pdf.cell(30, 7, f"{total:,.2f}", border=0, align='R')
+        pdf.set_y(start_y + row_height)
+
+    # --- GRAND TOTAL ---
+    pdf.set_font("THSarabun", "B", 14)
+    pdf.cell(150, 10, "Grand Total (Excluding VAT)", border=1, align='R')
+    pdf.cell(30, 10, f"{data.get('grand_total', 0.0):,.2f}", border=1, align='R', ln=True)
+
+    # --- REMARK & SIGNATURE ---
+    pdf.ln(10)
+    pdf.set_font("THSarabun", 'I', 12)
+    pdf.multi_cell(0, 6, f"Remark: {data.get('remark', '-')}") 
+    
+    pdf.ln(5)
+    pdf.set_font("THSarabun", "I", 12)
+    acceptance_text = "I hereby acknowledge and accept the terms, conditions, and prices quoted above, and authorize Siam Inter Mold Co., Ltd. to proceed with the requested work/delivery."
+    pdf.multi_cell(0, 5, acceptance_text, align='L')
+    
+    pdf.ln(10)
+    # --- ลายเซ็นต์ 3 ฝ่าย ---
+    pdf.ln(13) # เว้นที่สำหรับเซ็น
+    
+    # 1. หัวข้อลายเซ็นต์
+    pdf.set_font("THSarabun", "B", 12)
+    pdf.cell(63, 10, "Sales Representative", align='C')
+    pdf.cell(63, 10, "Authorized by Company", align='C')
+    pdf.cell(63, 10, "Accepted by Customer", align='C', ln=True)
+    
+    # 2. เส้นขีดสำหรับเซ็น
+    pdf.ln(10)
+    pdf.cell(63, 5, "____________________", align='C')
+    pdf.cell(63, 5, "____________________", align='C')
+    pdf.cell(63, 5, "____________________", align='C', ln=True)
+    
+    # 3. ชื่อตำแหน่ง / ข้อมูลเพิ่มเติม
+    pdf.cell(63, 5, "(____________________)", align='C')
+    pdf.cell(63, 5, "(____________________)", align='C')
+    pdf.cell(63, 5, "(____________________)", align='C', ln=True)
+    
+    # 4. วันที่
+    pdf.ln(5)
+    pdf.cell(63, 5, "Date: ____/____/____", align='C')
+    pdf.cell(63, 5, "Date: ____/____/____", align='C')
+    pdf.cell(63, 5, "Date: ____/____/____", align='C', ln=True)
+
+    raw_pdf = pdf.output(dest='S')
+    return bytes(raw_pdf) if isinstance(raw_pdf, (str, bytearray)) else raw_pdf
+def get_next_quotation_number(existing_numbers, group):
+    # กำหนด Prefix ตามกลุ่มสินค้า (ปรับตัวย่อให้ตรงกับที่บริษัทใช้จริงนะครับ)
+    prefix_map = {"Mold": "MLD", "Mass": "MSS", "Mass&Mold": "MSM", "Job Shop": "JOB"}
+    prefix_code = prefix_map.get(group, "QT")
+    
+    # กรองรายการที่มีเฉพาะ Prefix นี้
+    filtered = [n for n in existing_numbers if n.startswith(prefix_code)]
+    
+    if not filtered:
+        return f"{prefix_code}2026001"
+    
+    # หาค่าที่มากที่สุด
+    last_id = sorted(filtered)[-1]
+    
+    # ดึงตัวเลข 3 หลักสุดท้ายมาบวกเพิ่ม
+    try:
+        last_number = int(last_id[-3:])
+        return f"{prefix_code}2026{str(last_number + 1).zfill(3)}"
+    except:
+        return f"{prefix_code}2026001"
+
+def show_quotation_module(headers, url_qt, url_cust):
+    st.title("📄 Create / Update Quotation")
+
+    # 1. ดึงข้อมูลพื้นฐาน (ลูกค้า + รายการ Quotation ทั้งหมด)
+    res_cust = requests.get(f"{url_cust}?select=cust_code,cust_name,address,contact_name", headers=headers)
+    cust_df = pd.DataFrame(res_cust.json())
+    cust_options = cust_df.apply(lambda x: f"{x['cust_code']} | {x['cust_name']}", axis=1).tolist()
+
+    try:
+        # ดึง Quotation ทั้งหมดมาเพื่อทำ List ให้เลือก
+        res_all = requests.get(f"{url_qt}?select=*", headers=headers)
+        all_qt_data = res_all.json()
+        qt_list = ["-- สร้างใบใหม่ (New) --"] + [item['qt_number'] for item in all_qt_data]
+    except:
+        all_qt_data = []
+        qt_list = ["-- สร้างใบใหม่ (New) --"]
+
+    # 2. ส่วนเลือกใบเดิมเพื่อทำ Revision
+    selected_old_qt = st.selectbox("เลือก Quotation เดิมเพื่อทำ Rev ใหม่ (ถ้ามี):", qt_list)
+
+    # 3. เตรียม Session State สำหรับตารางสินค้า (ใช้คีย์เดียวร่วมกันทั้งระบบ)
+    if "qt_items" not in st.session_state:
+        st.session_state.qt_items = [{"desc": "", "qty": 1, "unit": "Pcs", "price": 0.0}]
+
+    # --- เมื่อมีการเลือกใบเก่า ---
+    # เปลี่ยนมาอัปเดตลงคีย์ 'qt_items' โดยตรง
+    if selected_old_qt != "-- สร้างใบใหม่ (New) --" and st.button("🔄 โหลดข้อมูลใบเดิม"):
+        old_record = next(item for item in all_qt_data if item['qt_number'] == selected_old_qt)
+        
+        if 'items_json' in old_record and old_record['items_json']:
+            loaded_items = old_record['items_json']
             
-            # --- KPI CARDS ---
-            kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
-            kpi_col1.metric("👥 ลูกค้ารวม", f"{len(df_dash):,}")
-            if 'mkt_status' in df_dash.columns:
-                active_rfq = len(df_dash[df_dash['mkt_status'] == 'RFQ'])
-                kpi_col2.metric("📈 อยู่ระหว่าง RFQ", f"{active_rfq} ราย")
-            if 'industry_segment' in df_dash.columns and not df_dash['industry_segment'].isnull().all():
-                top_seg = df_dash['industry_segment'].value_counts().idxmax()
-                kpi_col3.metric("🏢 อุตสาหกรรมหลัก", top_seg)
+            # ตรวจสอบรูปแบบกรณีดึงมาจากระบบภายนอกแล้วเป็น String 
+            if isinstance(loaded_items, str):
+                import json
+                try:
+                    loaded_items = json.loads(loaded_items)
+                except Exception as e:
+                    st.error(f"ไม่สามารถแปลงโครงสร้างข้อมูลสินค้าได้: {e}")
+                    loaded_items = []
 
-            st.divider()
-
-            # --- แถวที่ 1: กราฟ Pie และ กราฟอุตสาหกรรม ---
-            chart_col1, chart_col2 = st.columns(2)
-            with chart_col1:
-                if 'mkt_status' in df_dash.columns:
-                    df_mkt = df_dash['mkt_status'].value_counts().reset_index()
-                    df_mkt.columns = ['Status', 'Count']
-                    fig_mkt = px.pie(df_mkt, values='Count', names='Status', title='📊 สัดส่วนสถานะการตลาด',
-                                   hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
-                    st.plotly_chart(fig_mkt, use_container_width=True)
-
-            with chart_col2:
-                if 'industry_segment' in df_dash.columns:
-                    df_segment = df_dash['industry_segment'].value_counts().reset_index()
-                    df_segment.columns = ['Segment', 'Count']
-                    fig_seg = px.bar(df_segment, x='Segment', y='Count', title='🏢 การกระจายตัวตามกลุ่มอุตสาหกรรม',
-                                   color='Count', color_continuous_scale='Blues', text_auto=True)
-                    fig_seg.update_traces(textposition='outside')
-                    st.plotly_chart(fig_seg, use_container_width=True)
-
-            st.divider()
-
-            # --- แถวที่ 2: กราฟ BU และ กราฟ Sales ---
-            chart_col3, chart_col4 = st.columns(2)
-            with chart_col3:
-                if 'bu_type' in df_dash.columns:
-                    df_bu = df_dash['bu_type'].dropna().str.split(', ').explode().value_counts().reset_index()
-                    df_bu.columns = ['BU Type', 'Count']
-                    fig_bu = px.bar(df_bu, x='Count', y='BU Type', orientation='h', title='📈 พอร์ตโฟลิโอตาม BU',
-                                   color='Count', color_continuous_scale='Reds', text_auto=True)
-                    fig_bu.update_traces(textposition='outside')
-                    st.plotly_chart(fig_bu, use_container_width=True)
-
-            with chart_col4:
-                if 'sales_owner' in df_dash.columns:
-                    df_sales = df_dash['sales_owner'].fillna('No Sales').value_counts().reset_index()
-                    df_sales.columns = ['Sales Name', 'Count']
-                    fig_sales = px.bar(df_sales, x='Sales Name', y='Count', title='👤 จำนวนลูกค้าแยกตาม Sales',
-                                     color='Sales Name', color_discrete_sequence=px.colors.qualitative.Pastel, text_auto=True)
-                    fig_sales.update_traces(textposition='outside')
-                    st.plotly_chart(fig_sales, use_container_width=True)
-
-            # --- แถวที่ 3: วิเคราะห์เจาะลึก (Deep Dive Analysis) ---
-            st.divider()
-            st.markdown("#### 🔍 Sales Performance Breakdown (%)")
-            
-            if 'sales_owner' in df_dash.columns and 'mkt_status' in df_dash.columns:
-                # 1. เตรียมข้อมูล: นับจำนวนแยกตาม Sales และ Status
-                df_breakdown = df_dash.groupby(['sales_owner', 'mkt_status']).size().reset_index(name='Count')
-                
-                # 2. คำนวณ % ของแต่ละ Status เทียบกับลูกค้าทั้งหมดของ Sales คนนั้นๆ
-                df_breakdown['pct'] = df_breakdown.groupby('sales_owner')['Count'].transform(lambda x: (x / x.sum() * 100).round(1))
-                
-                # 3. สร้างกราฟ Stacked Bar Chart
-                fig_breakdown = px.bar(
-                    df_breakdown, 
-                    x='sales_owner', 
-                    y='Count', 
-                    color='mkt_status',
-                    title='📊 สัดส่วนสถานะลูกค้าแยกตามรายชื่อ Sales (แสดงจำนวน และ %)',
-                    barmode='stack',
-                    # ใช้ text เพื่อแสดงทั้ง จำนวน และ % พร้อมกัน
-                    text=df_breakdown.apply(lambda row: f"{row['Count']} ({row['pct']}%)", axis=1),
-                    color_discrete_map={
-                        "Potentials": '#FFA500', 
-                        'RFQ': '#1E90FF', 
-                        'Award': '#32CD32', 
-                        'Not Interest': '#FF4500'
-                    }
-                )
-                
-                fig_breakdown.update_layout(
-                    xaxis_title="ชื่อ Sales ผู้ดูแล",
-                    yaxis_title="จำนวนลูกค้า (ราย)",
-                    legend_title="สถานะการตลาด"
-                )
-                
-                # ปรับตำแหน่งตัวเลขให้อยู่กึ่งกลางแท่งเพื่อความสวยงาม
-                fig_breakdown.update_traces(textposition='inside')
-                
-                st.plotly_chart(fig_breakdown, use_container_width=True)
+            if loaded_items:
+                st.session_state.qt_items = loaded_items
+                st.success("โหลดรายการสินค้าเดิมเรียบร้อยแล้ว!")
+                st.rerun()
             else:
-                st.info("💡 ข้อมูลไม่เพียงพอสำหรับการคำนวณ %")
+                st.warning("ไม่พบรายการสินค้าภายในใบเดิมนี้")
 
-    # --- 1. จัดการเรื่องสิทธิ์ (Role Logic) ---
-    tab_list = ["📋 รายชื่อลูกค้า", "➕ ลงทะเบียนลูกค้าใหม่"]
-    if role in ['admin', 'sales_admin', 'sales']:
-        tab_list.append("📝 แก้ไขข้อมูลลูกค้า")
+    # 4. ส่วนกรอกข้อมูลหลัก
+    with st.container(border=True):
+        group = st.radio("กลุ่มสินค้า", ["Mold", "Mass", "Mass&Mold", "Job Shop"], horizontal=True)
+        
+        if selected_old_qt == "-- สร้างใบใหม่ (New) --":
+            existing_qt_nos = [item['qt_number'] for item in all_qt_data]
+            next_id = get_next_quotation_number(existing_qt_nos, group)
+            current_rev = "0"
+        else:
+            next_id = selected_old_qt.split(" Rev.")[0]
+            try:
+                old_rev = int(selected_old_qt.split(" Rev.")[-1])
+                current_rev = str(old_rev + 1)
+            except:
+                current_rev = "1"
 
-    all_tabs = st.tabs(tab_list)
+        col1, col2 = st.columns(2)
+        qt_no = col1.text_input("Quotation ID", value=next_id)
+        rev = col2.text_input("Revision (Rev)", value=current_rev)
+        
+        full_qt_id = f"{qt_no} Rev.{rev}"
+        qt_date = st.date_input("วันที่", datetime.now())
+        selected_cust = st.selectbox("เลือกลูกค้า", cust_options)
+        remark = st.text_area("หมายเหตุ", value="VAT is not included, Price Validity 30 Days")
 
-    # --- TAB 1: รายชื่อลูกค้า ---
-    with all_tabs[0]:
-        res = requests.get(f"{url}?select=*", headers=headers)
-        if res.status_code == 200:
-            data = res.json()
-            if data:
-                df = pd.DataFrame(data)
-                # เพิ่ม sales_owner ในหน้าแสดงผลด้วย
-                cols = ['cust_code', 'cust_name', 'bu_type', 'sales_owner', 'mkt_status']
-                available_cols = [c for c in cols if c in df.columns]
-                st.dataframe(df[available_cols], use_container_width=True, hide_index=True)
+    # -------------------------
+    # รายการสินค้า (ส่วนหัวตารางและลูปจัดการข้อมูล)
+    # -------------------------
+    st.subheader("รายการสินค้า")
+    
+    header_cols = st.columns([4, 1, 1, 2, 0.5])
+    header_cols[0].write("**Description**")
+    header_cols[1].write("**Qty**")
+    header_cols[2].write("**Unit**")
+    header_cols[3].write("**Price**")
+    header_cols[4].write("")
+
+    # ลูปสแกนและแก้ไขค่าลงสเตตตารางหลักโดยตรง
+    for i, row in enumerate(st.session_state.qt_items):
+        cols = st.columns([4, 1, 1, 2, 0.5])
+        
+        # ปรับการดึงค่ามาแสดงผล (ใช้ `.get()` เป็นเซฟการ์ดป้องกันข้อมูลเก่ามีโครงสร้างฟิลด์ไม่ครบ)
+        desc_val = row.get('desc', '')
+        qty_val = int(row.get('qty', 1))
+        unit_val = row.get('unit', 'Pcs')
+        price_val = float(row.get('price', 0.0))
+
+        st.session_state.qt_items[i]['desc'] = cols[0].text_input(f"d_{i}", value=desc_val, label_visibility="collapsed")
+        st.session_state.qt_items[i]['qty'] = cols[1].number_input(f"q_{i}", value=qty_val, min_value=0, label_visibility="collapsed")
+        st.session_state.qt_items[i]['unit'] = cols[2].text_input(f"u_{i}", value=unit_val, label_visibility="collapsed")
+        st.session_state.qt_items[i]['price'] = cols[3].number_input(f"p_{i}", value=price_val, min_value=0.0, format="%.2f", label_visibility="collapsed")
+        
+        if cols[4].button("🗑️", key=f"del_{i}"):
+            st.session_state.qt_items.pop(i)
+            st.rerun()
+
+    if st.button("➕ เพิ่มรายการสินค้า", use_container_width=True):
+        st.session_state.qt_items.append({"desc": "", "qty": 1, "unit": "Pcs", "price": 0.0})
+        st.rerun()
+
+    # 5. คำนวณยอดรวม 
+    final_items = [it for it in st.session_state.qt_items if str(it.get('desc', '')).strip() != ""]
+    sub_total = sum(float(it.get('qty', 0)) * float(it.get('price', 0.0)) for it in final_items)
+    
+    st.markdown(f"### ยอดรวมสุทธิ: :blue[{sub_total:,.2f}] บาท")
+
+    # 6. ปุ่มบันทึก (Supabase + PDF)
+    if st.button("💾 บันทึกและดาวน์โหลด PDF", type="primary"):
+        cust_code = selected_cust.split(" | ")[0]
+        cust_row = cust_df[cust_df['cust_code'] == cust_code].iloc[0]
+        cust_info = {
+            "name": cust_row['cust_name'],
+            "address": cust_row['address'],
+            "contact": cust_row.get('contact_name', 'N/A')
+        }
+        
+        db_payload = {
+            "qt_number": full_qt_id, 
+            "cust_code": cust_code, 
+            "date": str(qt_date), 
+            "grand_total": float(sub_total), 
+            "remark": remark, 
+            "group": group,
+            "items_json": final_items  
+        }
+        
+        try:
+            response = requests.post(url_qt, json=db_payload, headers=headers)
+            if response.status_code in [200, 201]:
+                st.success(f"✅ บันทึกข้อมูล {full_qt_id} ลงระบบเรียบร้อยแล้ว!")
             else:
-                st.info("ยังไม่มีข้อมูลลูกค้า")
-
-    # --- TAB 2: ลงทะเบียนลูกค้าใหม่ ---
-    with all_tabs[1]: # ✅ ต้องระบุ Tab Index ให้ชัดเจน
-        with st.form("reg_customer_form", clear_on_submit=True):
-            c1, c2 = st.columns(2)
-            with c1:
-                code = st.text_input("รหัสลูกค้า (Customer Code)*")
-                name = st.text_input("ชื่อบริษัท/ลูกค้า*")
-                bu = st.selectbox("กลุ่มธุรกิจ (BU)", ['MASS', 'MOLD', 'Mass&Mold', 'Special-Part', 'Services'])
-                sales_name = st.selectbox("Sales ผู้ดูแล*", SALES_LIST)
-            with c2:
-                bu_details = st.text_input("รายละเอียดลูกค้า")
-                segment = st.selectbox("กลุ่มอุตสาหกรรม", ["Automotive", "Electronics", "Medical", "Other"])
-                term = st.text_input("Credit Term")
-                contact = st.text_input("ชื่อผู้ติดต่อ / เบอร์โทร")
+                st.error(f"❌ บันทึกไม่สำเร็จ! Error {response.status_code}: {response.text}")
+        except Exception as e:
+            st.error(f"⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ Database: {e}")
+        
+        try:
+            pdf_payload = {
+                "qt_number": full_qt_id, 
+                "date": str(qt_date), 
+                "grand_total": sub_total, 
+                "remark": remark
+            }
             
-            address = st.text_area("ที่อยู่ (Address)")
+            pdf_bytes = generate_pdf(pdf_payload, final_items, cust_info)
             
-            # ✅ ใช้ตัวแปรเดียวตรวจสอบการ Submit
-            submit_reg = st.form_submit_button("บันทึกข้อมูล", type="primary")
-            
-            if submit_reg:
-                if code and name:
-                    payload = {
-                        "cust_code": code, "cust_name": name, "bu_type": bu,
-                        "bu_details": bu_details, "industry_segment": segment,
-                        "credit_term": term, "contact_name": contact, "address": address,
-                        "mkt_status": "Potentials", "sales_owner": sales_name
-                    }
-                    res = requests.post(url, headers=headers, json=payload)
-                    if res.status_code in [200, 201]:
-                        st.success(f"✅ บันทึก {name} เรียบร้อย")
-                        time.sleep(1)
-                        st.rerun()
-                    else:
-                        st.error(f"❌ Error: {res.text}")
-                else:
-                    st.warning("⚠️ กรุณากรอกรหัสและชื่อลูกค้า")
-
-    # --- TAB 3: แก้ไขข้อมูลลูกค้า ---
-    if len(all_tabs) > 2:
-        with all_tabs[2]:
-            BU_OPTIONS = ['MASS', 'MOLD', 'Mass&Mold', 'Special-Part', 'Services']
-            MARKETING_OPTIONS = ['Not Interest', "Potentials", 'RFQ', 'Award']
-
-            res_all = requests.get(f"{url}?select=*", headers=headers)
-            if res_all.status_code == 200 and res_all.json():
-                full_cust_df = pd.DataFrame(res_all.json())
-                
-                search_query = st.text_input("🔍 ค้นหาลูกค้าที่ต้องการแก้ไข", placeholder="พิมพ์ชื่อหรือรหัส...")
-                
-                if search_query:
-                    filtered_cust = full_cust_df[
-                        full_cust_df['cust_name'].str.contains(search_query, case=False, na=False) |
-                        full_cust_df['cust_code'].str.contains(search_query, case=False, na=False)
-                    ]
-                else:
-                    filtered_cust = full_cust_df
-
-                if not filtered_cust.empty:
-                    cust_list = (filtered_cust['cust_code'] + " | " + filtered_cust['cust_name']).tolist()
-                    selected_cust_item = st.selectbox("เลือกรายชื่อ:", cust_list)
-                    
-                    sel_code = selected_cust_item.split(" | ")[0]
-                    cust_row = filtered_cust[filtered_cust['cust_code'] == sel_code].iloc[0]
-                    
-                    st.divider()
-                    
-                    # ✅ Form แก้ไข
-                    with st.form("update_customer_form"):
-                        st.info(f"📝 กำลังแก้ไข: {cust_row['cust_name']}")
-                        uc1, uc2 = st.columns(2)
-                        
-                        with uc1:
-                            u_name = st.text_input("ชื่อบริษัท/ลูกค้า*", value=str(cust_row.get('cust_name', '')))
-                            # ✅ ดึงค่า Sales เดิม
-                            old_sales = cust_row.get('sales_owner', "K.Rewat")
-                            try: s_idx = SALES_LIST.index(old_sales)
-                            except: s_idx = 0
-                            u_sales = st.selectbox("Sales ผู้ดูแล", SALES_LIST, index=s_idx)
-                            
-                            # Multiselect BU
-                            old_bu = cust_row.get('bu_type', '')
-                            default_bu = [b.strip() for b in old_bu.split(',')] if old_bu else []
-                            u_bu_list = st.multiselect("กลุ่มธุรกิจ (BU)", BU_OPTIONS, default=default_bu)
-                        
-                        with uc2:
-                            # Marketing Status
-                            raw_mkt = cust_row.get('mkt_status', "Potentials")
-                            old_mkt = raw_mkt.strip("'") if isinstance(raw_mkt, str) else "Potentials"
-                            try: mkt_idx = MARKETING_OPTIONS.index(old_mkt)
-                            except: mkt_idx = 1 
-                            u_mkt_status = st.selectbox("Marketing Status", MARKETING_OPTIONS, index=mkt_idx)
-                            
-                            u_term = st.text_input("Credit Term", value=str(cust_row.get('credit_term', '')))
-                            u_contact = st.text_input("ผู้ติดต่อ", value=str(cust_row.get('contact_name', '')))
-
-                        u_address = st.text_area("ที่อยู่", value=str(cust_row.get('address', '')))
-                        
-                        # ✅ ปุ่มกดอัปเดต (ต้องอยู่ใน with st.form)
-                        if st.form_submit_button("🔄 อัปเดตข้อมูลลูกค้า", type="primary"):
-                            update_payload = {
-                                "cust_name": u_name,
-                                "bu_type": ", ".join(u_bu_list),
-                                "mkt_status": u_mkt_status,
-                                "sales_owner": u_sales,
-                                "credit_term": u_term,
-                                "contact_name": u_contact,
-                                "address": u_address
-                            }
-                            p_url = f"{url}?cust_code=eq.{sel_code}"
-                            u_res = requests.patch(p_url, headers=headers, json=update_payload)
-                            if u_res.status_code in [200, 204]:
-                                st.success("✅ อัปเดตเรียบร้อย!")
-                                time.sleep(1)
-                                st.rerun()
-                            else:
-                                st.error(f"❌ อัปเดตไม่สำเร็จ: {u_res.text}")
-            else:
-                st.info("ไม่มีข้อมูลลูกค้า")
+            st.download_button(
+                label=f"📥 ดาวน์โหลดเอกสาร {full_qt_id}.pdf",
+                data=pdf_bytes, 
+                file_name=f"{full_qt_id}.pdf",
+                mime="application/pdf"
+            )
+            st.balloons() 
+        except Exception as e:
+            st.error(f"⚠️ เกิดข้อผิดพลาดในการสร้างไฟล์ PDF: {e}")
