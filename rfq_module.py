@@ -26,17 +26,17 @@ def send_auto_email(rfq_data):
     admin_team = [
         "wattanapon.s@siamintermold.com", "paitoon.b@siamintermold.com",
         "utai.c@siamintermold.com", "rewat.m@siamintermold.com",
-        "admincenter@siamintermold.com"
+        "admincenter@siamintermold.com", "waiphop.b@siamintermold.com"
     ]
     
     staff_team = []
     bu = rfq_data.get('rfq_bu')
     if bu == "Mass":
-        staff_team = ["natthapol.p@siamintermold.com"]
+        staff_team = ["natthapol.p@siamintermold.com", "waiphop.b@siamintermold.com"]
     elif bu == "Mold":
         staff_team = ["thawat.t@siamintermold.com", "waiphop.b@siamintermold.com"]
     elif bu == "Mass&Mold":
-        staff_team = ["natthapol.p@siamintermold.com", "thawat.t@siamintermold.com"]
+        staff_team = ["natthapol.p@siamintermold.com", "thawat.t@siamintermold.com", "waiphop.b@siamintermold.com"]
 
     receiver_emails = list(set([email.strip() for email in (admin_team + staff_team) if email]))
 
