@@ -78,13 +78,9 @@ def show_customer_module(headers, url, role):
             st.markdown("#### 🔍 Sales Performance Breakdown (%)")
             
             if 'sales_owner' in df_dash.columns and 'mkt_status' in df_dash.columns:
-                # 1. เตรียมข้อมูล: นับจำนวนแยกตาม Sales และ Status
                 df_breakdown = df_dash.groupby(['sales_owner', 'mkt_status']).size().reset_index(name='Count')
-                
-                # 2. คำนวณ % ของแต่ละ Status เทียบกับลูกค้าทั้งหมดของ Sales คนนั้นๆ
                 df_breakdown['pct'] = df_breakdown.groupby('sales_owner')['Count'].transform(lambda x: (x / x.sum() * 100).round(1))
                 
-                # 3. สร้างกราฟ Stacked Bar Chart
                 fig_breakdown = px.bar(
                     df_breakdown, 
                     x='sales_owner', 
@@ -92,7 +88,6 @@ def show_customer_module(headers, url, role):
                     color='mkt_status',
                     title='📊 สัดส่วนสถานะลูกค้าแยกตามรายชื่อ Sales (แสดงจำนวน และ %)',
                     barmode='stack',
-                    # ใช้ text เพื่อแสดงทั้ง จำนวน และ % พร้อมกัน
                     text=df_breakdown.apply(lambda row: f"{row['Count']} ({row['pct']}%)", axis=1),
                     color_discrete_map={
                         "Potentials": '#FFA500', 
@@ -107,15 +102,12 @@ def show_customer_module(headers, url, role):
                     yaxis_title="จำนวนลูกค้า (ราย)",
                     legend_title="สถานะการตลาด"
                 )
-                
-                # ปรับตำแหน่งตัวเลขให้อยู่กึ่งกลางแท่งเพื่อความสวยงาม
                 fig_breakdown.update_traces(textposition='inside')
-                
                 st.plotly_chart(fig_breakdown, use_container_width=True)
             else:
                 st.info("💡 ข้อมูลไม่เพียงพอสำหรับการคำนวณ %")
 
-    # --- 1. จัดการเรื่องสิทธิ์ (Role Logic) ---
+    # --- 2. จัดการเรื่องสิทธิ์ (Role Logic) ---
     tab_list = ["📋 รายชื่อลูกค้า", "➕ ลงทะเบียนลูกค้าใหม่"]
     if role in ['admin', 'sales_admin', 'sales']:
         tab_list.append("📝 แก้ไขข้อมูลลูกค้า")
@@ -129,7 +121,13 @@ def show_customer_module(headers, url, role):
             data = res.json()
             if data:
                 df = pd.DataFrame(data)
-                # เพิ่ม sales_owner ในหน้าแสดงผลด้วย
+                
+                # 🎯 ส่วนเพิ่มใหม่: ตัวเลือกกรอง Non-Active ออก
+                show_active_only = st.checkbox("👥 แสดงเฉพาะลูกค้าที่ยังติดต่ออยู่ (Active Only)", value=True)
+                
+                if show_active_only and 'is_active' in df.columns:
+                    df = df[df['is_active'] == True] # กรองเอาเฉพาะที่เป็น True เท่านั้นมาแสดง
+                
                 cols = ['cust_code', 'cust_name', 'bu_type', 'sales_owner', 'mkt_status']
                 available_cols = [c for c in cols if c in df.columns]
                 st.dataframe(df[available_cols], use_container_width=True, hide_index=True)
@@ -137,7 +135,7 @@ def show_customer_module(headers, url, role):
                 st.info("ยังไม่มีข้อมูลลูกค้า")
 
     # --- TAB 2: ลงทะเบียนลูกค้าใหม่ ---
-    with all_tabs[1]: # ✅ ต้องระบุ Tab Index ให้ชัดเจน
+    with all_tabs[1]:
         with st.form("reg_customer_form", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
@@ -152,8 +150,6 @@ def show_customer_module(headers, url, role):
                 contact = st.text_input("ชื่อผู้ติดต่อ / เบอร์โทร")
             
             address = st.text_area("ที่อยู่ (Address)")
-            
-            # ✅ ใช้ตัวแปรเดียวตรวจสอบการ Submit
             submit_reg = st.form_submit_button("บันทึกข้อมูล", type="primary")
             
             if submit_reg:
@@ -162,7 +158,8 @@ def show_customer_module(headers, url, role):
                         "cust_code": code, "cust_name": name, "bu_type": bu,
                         "bu_details": bu_details, "industry_segment": segment,
                         "credit_term": term, "contact_name": contact, "address": address,
-                        "mkt_status": "Potentials", "sales_owner": sales_name
+                        "mkt_status": "Potentials", "sales_owner": sales_name,
+                        "is_active": True # สมัครใหม่ให้ค่าเริ่มต้นเป็น Active เสมอ
                     }
                     res = requests.post(url, headers=headers, json=payload)
                     if res.status_code in [200, 201]:
@@ -203,26 +200,23 @@ def show_customer_module(headers, url, role):
                     
                     st.divider()
                     
-                    # ✅ Form แก้ไข
+                    # ✅ ฟอร์มแก้ไขที่แยกออกมาแบบสมบูรณ์และถูกต้อง
                     with st.form("update_customer_form"):
                         st.info(f"📝 กำลังแก้ไข: {cust_row['cust_name']}")
                         uc1, uc2 = st.columns(2)
                         
                         with uc1:
                             u_name = st.text_input("ชื่อบริษัท/ลูกค้า*", value=str(cust_row.get('cust_name', '')))
-                            # ✅ ดึงค่า Sales เดิม
                             old_sales = cust_row.get('sales_owner', "K.Rewat")
                             try: s_idx = SALES_LIST.index(old_sales)
                             except: s_idx = 0
                             u_sales = st.selectbox("Sales ผู้ดูแล", SALES_LIST, index=s_idx)
                             
-                            # Multiselect BU
                             old_bu = cust_row.get('bu_type', '')
                             default_bu = [b.strip() for b in old_bu.split(',')] if old_bu else []
                             u_bu_list = st.multiselect("กลุ่มธุรกิจ (BU)", BU_OPTIONS, default=default_bu)
                         
                         with uc2:
-                            # Marketing Status
                             raw_mkt = cust_row.get('mkt_status', "Potentials")
                             old_mkt = raw_mkt.strip("'") if isinstance(raw_mkt, str) else "Potentials"
                             try: mkt_idx = MARKETING_OPTIONS.index(old_mkt)
@@ -231,10 +225,15 @@ def show_customer_module(headers, url, role):
                             
                             u_term = st.text_input("Credit Term", value=str(cust_row.get('credit_term', '')))
                             u_contact = st.text_input("ผู้ติดต่อ", value=str(cust_row.get('contact_name', '')))
+                            
+                            # 🎯 จุดดึงข้อมูลสถานะ Active/Non-Active เก่ามาแสดงผลในฟอร์มแก้ไข
+                            old_active = cust_row.get('is_active', True)
+                            u_is_active = st.checkbox("🟢 สถานะลูกค้า Active", value=bool(old_active), 
+                                                      help="หากลูกค้าไม่มีการเคลื่อนไหวหรือเลิกติดต่อ ให้ติ๊กเครื่องหมายออก")
 
                         u_address = st.text_area("ที่อยู่", value=str(cust_row.get('address', '')))
                         
-                        # ✅ ปุ่มกดอัปเดต (ต้องอยู่ใน with st.form)
+                        # ✅ สั่งอัปเดตกลับไปยัง Supabase (PATCH)
                         if st.form_submit_button("🔄 อัปเดตข้อมูลลูกค้า", type="primary"):
                             update_payload = {
                                 "cust_name": u_name,
@@ -243,7 +242,8 @@ def show_customer_module(headers, url, role):
                                 "sales_owner": u_sales,
                                 "credit_term": u_term,
                                 "contact_name": u_contact,
-                                "address": u_address
+                                "address": u_address,
+                                "is_active": u_is_active
                             }
                             p_url = f"{url}?cust_code=eq.{sel_code}"
                             u_res = requests.patch(p_url, headers=headers, json=update_payload)
